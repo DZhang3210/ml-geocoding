@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(jupyter nbconvert *)",
+      "Bash(python -c \"import json; nb=json.load\\(open\\('Data/Data_Helpers/stamford_analysis.ipynb'\\)\\); [print\\(''.join\\(c['source']\\),'\\\\n---'\\) for c in nb['cells']]\")"
+    ]
+  }
+}
