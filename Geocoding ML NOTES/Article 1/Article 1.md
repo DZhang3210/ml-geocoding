@@ -25,5 +25,10 @@
 	- "Ensemble" just means that the final predictions comes form combining many additional models (**or decision trees**) into one model
 	- **Random Forest** is a **bagging** ensemble that trains many decision trees **independently**, whose votes average to the ultimate decision
 	- **XGBoost** is a **boosting** ensemble, which trains trees sequentially, where each tree is created to explicitly correct the mistakes of the previous trees
+- **Adding Error to the Dataset**
+	- Used **Febrl**, Freely Extensible Biomedical Record Linkage
 - **Results**
-	- 
+	- HMM did the worst in general
+	- Logistic was the worst classifier
+	- XGBoost and Random Forest did ok, though XGBoost seemed to do slighlty better
+	- The word2vec did pretty good, perhaps in the future we could use these integrated with current random forest in a way
