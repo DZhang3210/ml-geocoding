@@ -16,7 +16,8 @@
 	- **Pros:** simple and intuitive
 	- **Cons:** not reflective of how address typos typically behave
 - **Jaro-Wrinkler**
-	- tuned for short-strings, like names and addresses
+	- Same bones as Levenshtein
+		- tuned for short-strings, like names and addresses
 	- Scores/Rewards based on position
 	- give extra weight to **common prefixes**
 	- **Example:** "123 Main St" and "123 Main Street"

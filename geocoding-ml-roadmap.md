@@ -10,9 +10,9 @@
 
 | #   | Step                                  | Paper                                           | Est. time | Status |
 | --- | ------------------------------------- | ----------------------------------------------- | --------- | ------ |
-| 1   | Dumb baseline                         | Comber & Arribas-Bel (2019)                     | 1-2 days  | 🔶     |
-| 1b  | Stronger feature-engineered baseline  | Lee, Claridades & Lee (2020)                    | 1-2 days  | ⬜      |
-| 2   | Real dataset                          | —                                               | 2-3 days  | ⬜      |
+| 1   | Dumb baseline                         | Comber & Arribas-Bel (2019)                     | 1-2 days  | ⬜      |
+| 1b  | Stronger feature-engineered baseline  | Lee, Claridades & Lee (2020)                    | 1-2 days  | 🔶     |
+| 2   | Real dataset                          | —                                               | 2-3 days  | 🔶     |
 | 3   | Hand-built matching architecture      | Reimers & Gurevych (2019)                       | 4-6 days  | ⬜      |
 | 4   | Reproduce a published DL approach     | Lin et al. (2020)                               | 4-5 days  | ⬜      |
 | 5   | Swap in pretrained transformer        | Siamese Transformer Networks (arXiv 2307.02300) | 3-4 days  | ⬜      |
@@ -57,7 +57,7 @@ This is a planning aid, not a commitment — if Week 2 runs into Week 3, that's 
   3. Fit `sklearn.linear_model.LogisticRegression` on these features against your labeled match/no-match pairs.
   4. Report precision, recall, F1 — not just accuracy, since match/no-match is usually imbalanced.
 - **Finish threshold:** You have a single number (F1 on a held-out test split) that every later model must be compared against, and you can explain in one sentence why accuracy alone would have been misleading for this data.
-- **Status note (2026-09-05):** Pipeline built and working end-to-end in `step1-baseline/` (dataset generator, feature extraction, logistic regression, eval) against a synthetic placeholder dataset — see `step1-baseline/results.md`. Test F1 = 0.9945, but this is inflated by easy synthetic negatives; the real benchmark number will come from rerunning `train.py` once Step 2's real dataset replaces the synthetic one. Don't cite 0.9945 as the baseline to beat.
+- **Status note (2026-09-13):** The pipeline previously reported here (`step1-baseline/`, F1 = 0.9945 on synthetic data) was never committed to git and is no longer on disk — it did not survive between sessions. Treating Step 1 as **not actually done**; resetting status to ⬜. Not currently being redone in isolation — work has moved to Step 1b and to Step 2 dataset setup in parallel (see their notes below), and Step 1's simple single-feature baseline can be rebuilt quickly once real pair data exists, as a first row in the same results table Step 1b feeds into.
 
 ### 1b — Build a stronger feature-engineered baseline (optional but recommended)
 - **Paper:** Lee, Claridades & Lee (2020), *"Improving a Street-Based Geocoding Algorithm Using Machine Learning Techniques"*, Applied Sciences 10(16):5628.
@@ -71,6 +71,7 @@ This is a planning aid, not a commitment — if Week 2 runs into Week 3, that's 
   3. Do a feature-selection pass (their paper finds 9 of 17 metrics sufficient for >97% accuracy) — this is a good opportunity to practice feature-importance analysis (XGBoost's built-in importances, or a simple ablation) rather than keeping every feature by default.
   4. Use your own Step 2 dataset and its train/val/test split (don't build a separate Korean-address dataset) so the comparison to Step 1 and later steps stays apples-to-apples; note explicitly if the noise characteristics of your dataset differ from their 30/50/70%-correct synthetic setup.
   5. Report precision/recall/F1 the same way as Step 1, plus a short note on which similarity metrics mattered most for your data (may differ from theirs, since English/US addresses behave differently from Korean road-name addresses).
+- **Status note (2026-09-13):** In progress — actively being worked on now, in parallel with Step 2 dataset setup.
 - **Finish threshold:** A results-table row for this model sitting between Step 1's baseline and Step 3's hand-built siamese model, plus one paragraph on whether the added feature engineering + XGBoost meaningfully beat the Step 1 single-feature baseline on your data, and by how much.
 
 ### 2 — Assemble a real, small dataset
@@ -81,6 +82,7 @@ This is a planning aid, not a commitment — if Week 2 runs into Week 3, that's 
   2. Generate positive pairs by applying synthetic formatting noise to real addresses (abbreviate "Street" to "St", drop unit numbers, swap word order) so you know the ground truth.
   3. Generate hard negatives deliberately — addresses on the same street with different numbers, or same number on visually similar street names — not just random pairs, which are too easy and won't stress-test your model.
   4. Split into train/val/test by *location*, not by row, so the same address doesn't leak across splits.
+- **Status note (2026-09-13):** In progress — downloaded a real address dataset for Stamford, CT (`Data/us-ct-city_of_stamford/`, shapefile) and converted it to CSV (`Data/Data_Helpers/convert_file_to_csv.py` → `output.csv`, ~28,294 rows: StreetName, Address, ZipCode, X/Y coords). Exploratory look at the data underway in `Data/Data_Helpers/stamford_analysis.ipynb`. Positive/hard-negative pair generation and the location-based train/val/test split have not started yet.
 - **Finish threshold:** A single dataset file (or a small set of them) with clearly labeled positive/negative pairs and a fixed train/val/test split you will reuse for every later step without re-splitting.
 
 ### 3 — Hand-build the matching architecture

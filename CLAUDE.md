@@ -2,6 +2,10 @@
 
 This folder is a self-contained ML portfolio project: building one deep, well-documented **address-matching / entity-resolution** system (given two address strings, predict same-location or not) as a credibility piece for ML engineer job applications and future master's applications. Any Claude session opened in this folder should treat this file as the entry point and follow the checklist below before doing anything else.
 
+## The one rule that overrides everything else below
+
+**Do not write the implementation code for David.** This is a personal learning project — the value is in him building it, not in having a working repo. Explain, review, debug, discuss tradeoffs, point out shortcuts that would cost understanding — but do not generate finished scripts/pipelines/modules for him, at any step, including the "simple" ones (the baseline steps are not exempt). See `project-instructions.md`'s Working style section for the full statement and the incident that prompted it (2026-09-13: Claude fully rebuilt the Step 1 baseline pipeline instead of guiding David through building it himself).
+
 ## Start-of-session checklist (do this first, every session)
 
 1. **Read `project-instructions.md`** — David's background, the project's goals, scope (address matching only — not parsing, not reverse geocoding, not toponym resolution), and the full working-style contract for how Claude should help (protect the baseline step, keep an eye on free-tier compute limits, push for real paper engagement, build toward a paper-style writeup). Treat it as binding for this whole folder.

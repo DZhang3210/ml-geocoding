@@ -1,0 +1,29 @@
+- Primarily testing out new method for comparing two addresses
+- Baseline: Hidden Markov Model
+- Experiment 1: CRF (Conditional Random Field)
+- Experiment 2: CRF (Word2Vec)
+	- Instead of using the **Jaro-Wrinkler**, we embed each word into a word space using **word2vec**
+	- Then we identify matches via a similarity scoring method
+	- This is due to the theory of semantically similar words matching closely even if differing slightly
+- Classifiers
+	- Logistic:
+		- Uses a linear classifier to identify the cutoff
+	- Random Forest: 
+		- Uses the random forest algorithm to find the cutoff
+	- XG-Boost:
+		- Another non-linear classification algorithm
+- **What is CRF (parser)**
+	- It's the method of splitting a raw address string into fields
+	- i.e.  (house name, number, street, city, zip)
+	- Then fed into a **comparison vector**
+- **What is the Label Bias Problem**
+	- It's when a parser must make a decision, in this case its HMM
+	- When HMM walks through a string it might classify one word/set of words as the street name. In such case that automatically restricts all future classifications to no longer classify street number, even if there's a better candidate down the road
+	- **In comparison,** **CRF** always tries to look at all matches holistically, and in such case attempts to find a sequence of labels which uses a **reversible highest scoring path**
+- **What is an Ensemble Learner**
+	- **XGBoost** and **Random Forest** count as ensemble learners
+	- "Ensemble" just means that the final predictions comes form combining many additional models (**or decision trees**) into one model
+	- **Random Forest** is a **bagging** ensemble that trains many decision trees **independently**, whose votes average to the ultimate decision
+	- **XGBoost** is a **boosting** ensemble, which trains trees sequentially, where each tree is created to explicitly correct the mistakes of the previous trees
+- **Results**
+	- 
