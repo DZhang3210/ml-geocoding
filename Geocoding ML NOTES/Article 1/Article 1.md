@@ -1,4 +1,3 @@
-- Primarily testing out new method for comparing two addresses
 - Baseline: Hidden Markov Model
 - Experiment 1: CRF (Conditional Random Field)
 - Experiment 2: CRF (Word2Vec)

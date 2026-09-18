@@ -27,12 +27,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "Article 1/Article 1.md",
+                "file": "Notes/Dataset Construction Walkthrough.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "Article 1"
+              "title": "Dataset Construction Walkthrough"
             }
           }
         ],
@@ -205,8 +205,9 @@
   },
   "active": "1d5020291f8fa505",
   "lastOpenFiles": [
-    "Notes/Basics.md",
     "Article 1/Article 1.md",
+    "Notes/Dataset Construction Walkthrough.md",
+    "Notes/Basics.md",
     "Article 2/Article 2.md",
     "Article 1"
   ]
