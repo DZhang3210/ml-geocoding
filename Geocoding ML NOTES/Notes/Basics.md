@@ -9,7 +9,7 @@
 		- Then compile a similarity score for **each piece**
 		-  This allows us to weigh weight certain areas more based on their importance in similarity
 
-### Similarity Scoring
+### Similarity Scoring (Character-Level)
 - **Levenshtein Distance**
 	- Counts the minimum number of single-character insertions, deletions, or substitutions, to turn one string into the other.
 		- **Example:** "Main St" -> "Main Street"
@@ -22,6 +22,23 @@
 	- give extra weight to **common prefixes**
 	- **Example:** "123 Main St" and "123 Main Street"
 		- Common prefix for first 11 characters
+- **Hamming**
+	- Counts the number of positions where two equal length strings or vectors differ
+	- Oftentimes fails for strings which are not of the same length
+	- Some implementations can handle it by simply counting mismatches as missing, like `hamming(abc, abcd) = 1`
+
+## Similarity Scoring (token-based)
+- **Jacard Similarity** -> measures the **shared** content over the **total distinct content**.
+	- "How much overlaps relative to size"
+	- Return `[0|1]`
+- **Sorensen-Dice Coefficient** -> same bones as Jaccard but **more forgiving for size mismatches**
+- **Overlap Coefficient** -> shared content over the **smaller set's size**
+	- Is specifically very good for handling sets, which are **subsets of the other**
+	- **Example:** `ST -> STREET`
+- **Tversky Index** -> Allows you to bias/penalize content, based on which side
+	- **For example:** you can bias towards the clean side, so it matters more if the clean-tokens match a lot in comparison to dirty tokens
+- **Cosine Similarity** -> Same numerator, but normalized by the **geometric mean of the two set sizes rather than their union, size, or minimum**
+	- What does it mean? Ehh...
 
 ### But what actually is geocoding?
 1) Isolate and identify candidates, so let's first use some basic heuristics to narrow down the search to a short list of plausible candidates
