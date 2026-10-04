@@ -43,4 +43,5 @@ As of the last update, a **Step 1b** was added: Lee, Claridades & Lee (2020, *Ap
 - `progress-log.md` — running log of completed steps, reviewed papers, explained concepts.
 - `open-questions-and-debugging.md` — running log of open questions and debugging history.
 - `Article 1/` — Lee, Claridades & Lee (2020) MDPI *Applied Sciences* paper; reviewed and integrated into the roadmap as Step 1b (see `Article 1/Article 1.md` for the paper link and review pointer).
+- `Algorithm_Reimplementation/` — Step 1b side lab (closed 2026-10-04): David's from-scratch decision tree, random forest, gradient boosting (regression + classification) and XGBoost (regression + classification) notebooks, each validated against sklearn/xgboost. Learning artifacts only — Step 1b's reported numbers come from the libraries.
 - `dummy.py` — scratch/connectivity-test file, not part of the project itself.
