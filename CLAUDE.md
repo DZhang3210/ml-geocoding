@@ -36,6 +36,8 @@ Core chain: dumb baseline (Comber & Arribas-Bel 2019) → real dataset → hand-
 
 As of the last update, a **Step 1b** was added: Lee, Claridades & Lee (2020, *Applied Sciences* 10(16):5628) — a feature-engineered classical-ML baseline (17 string-similarity metrics feeding SVM/Random Forest/XGBoost) that hits 96%+ accuracy on Korean street addresses. It sits between Step 1 and Step 2 as a stronger, still-classical baseline to beat before moving to siamese/transformer architectures — see the roadmap file for full detail.
 
+As of 2026-10-05, **Step 2b** (real cross-source address pairs from Overture Maps Places + bridge files, address fields only) and **Step 2c** (libpostal as a rule-based baseline — its parsing training data was considered and not adopted as a data source) were added; both start after Step 1b. Stamford stays as the synthetic benchmark.
+
 ## Folder contents
 
 - `project-instructions.md` — background, goals, scope, working-style contract. Read first.
