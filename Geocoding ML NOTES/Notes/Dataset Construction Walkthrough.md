@@ -1,6 +1,6 @@
 # Dataset Construction Walkthrough — Step 2
 
-Code-block-by-code-block notes on `stamford_analysis.ipynb`, in notebook order, with the reasoning behind each decision.
+Code-block-by-code-block notes on `02_stamford_analysis.ipynb`, in notebook order, with the reasoning behind each decision.
 
 ---
 

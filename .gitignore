@@ -2,3 +2,12 @@ venv/
 __pycache__/
 *.pyc
 .env
+
+# Generated data — rebuilt by the notebooks, not versioned (see each notebook's header for how)
+geocoding_ml/Overture/Data/
+geocoding_ml/model_baseline/overture_training/
+geocoding_ml/model_baseline/stamford_training/
+
+# OS / editor clutter
+.DS_Store
+.ipynb_checkpoints/

@@ -3,8 +3,8 @@
 How the real cross-source address-pair dataset (`geocoding_ml/Overture/Data/ct_pairs_{train,val,test}_2026-09-23.1.parquet`; was `Data/Overture/` before the 2026-10-13 reorg) was built, 2026-10-05 → 2026-10-11. For each stage: **what** was done, **why** (the thought process and the alternatives rejected), the **checks** that confirmed it, and the **pitfalls** hit along the way.
 
 Code lives in two notebooks:
-- `geocoding_ml/Overture/merging_overture_with_fsq.ipynb` (was `Data/grabbing_new_data.ipynb`): all DuckDB queries — acquisition, address cleaning, house-number flags, ZIP cleaning (stages 1–7, notebook §1–9)
-- `geocoding_ml/Overture/processing_overture_data.ipynb` (was `Data/creating_dataset.ipynb`): pandas — split, negatives, assembly (stages 8–14, notebook §4–8; §1–3 moved to the merging notebook's §7–9 on 2026-10-12)
+- `geocoding_ml/Overture/01_merging_overture_with_fsq.ipynb` (was `Data/grabbing_new_data.ipynb`): all DuckDB queries — acquisition, address cleaning, house-number flags, ZIP cleaning (stages 1–7, notebook §1–9)
+- `geocoding_ml/Overture/02_processing_overture_data.ipynb` (was `Data/creating_dataset.ipynb`): pandas — split, negatives, assembly (stages 8–14, notebook §4–8; §1–3 moved to the merging notebook's §7–9 on 2026-10-12)
 
 A self-check quiz is at the end. If you can answer it without looking back, you understand the pipeline.
 
@@ -152,7 +152,7 @@ Unit-level matching is "future work".
 
 ---
 
-## Stage 6 — House-number flags (`ct_positives_flagged`, `merging_overture_with_fsq` §7)
+## Stage 6 — House-number flags (`ct_positives_flagged`, `01_merging_overture_with_fsq` §7)
 
 **What.**
 - `number_mismatch`: both sides have a leading number and they differ (**1,778**).
@@ -171,7 +171,7 @@ The 46 empty `address_a_clean` rows and the 544 NULL-B rows were dropped, leavin
 
 ---
 
-## Stage 7 — ZIP cleaning (`ct_positives_zip_cleaned`, `merging_overture_with_fsq` §8–9)
+## Stage 7 — ZIP cleaning (`ct_positives_zip_cleaned`, `01_merging_overture_with_fsq` §8–9)
 
 **Why ZIPs got this much attention.** `postcode_a` is the **split key** (stage 8), so it has to be clean before anything is split.
 
@@ -197,7 +197,7 @@ The 46 empty `address_a_clean` rows and the 544 NULL-B rows were dropped, leavin
 
 ---
 
-## Stage 8 — Train / val / test split by ZIP (`processing_overture_data` §4)
+## Stage 8 — Train / val / test split by ZIP (`02_processing_overture_data` §4)
 
 **What.** Each whole ZIP goes into exactly one split. Every place then takes its ZIP's split. The ZIP → split mapping is saved on its own (`ct_positives_split_data`).
 
