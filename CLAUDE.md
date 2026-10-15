@@ -49,6 +49,7 @@ As of 2026-10-05, **Step 2b** (real cross-source address pairs from Overture Map
 - `geocoding-ml-roadmap.md` — the living step-by-step plan with status tracking.
 - `progress-log.md` — running log of completed steps, reviewed papers, explained concepts.
 - `open-questions-and-debugging.md` — running log of open questions and debugging history.
+- `results.md` — the project's running results table (one row per model, test split, per slice; val in brackets) + one paragraph per step. Every step that produces a model adds its row here.
 - `Article 1/` — Lee, Claridades & Lee (2020) MDPI *Applied Sciences* paper; reviewed and integrated into the roadmap as Step 1b (see `Article 1/Article 1.md` for the paper link and review pointer).
 - `Algorithm_Reimplementation/` — Step 1b side lab (closed 2026-10-04): David's from-scratch decision tree, random forest, gradient boosting (regression + classification) and XGBoost (regression + classification) notebooks, each validated against sklearn/xgboost. Learning artifacts only — Step 1b's reported numbers come from the libraries.
 - `geocoding_ml/` — all project code and data (reorganized 2026-10-13; replaces the old `Data/` folder). Notebooks run with their own folder as the working directory, so paths are relative to it.

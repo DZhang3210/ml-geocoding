@@ -11,12 +11,14 @@
 # side b is corrupted and 02 never stored which generator a negative came from:
 #   case0  label 1
 #   case1  same street, different number
-#   case2  same number, different street
-#   case3  anything else (easy / random)
+#   case2  same number, similar but different street (Jaro-Winkler > 0.8 on the clean street names,
+#          the same threshold Overture's case2 uses)
+#   case3  anything else (easy / random, incl. same number on an unrelated street)
 # Rule-based, so a random easy pair that happens to sit on the same street lands in case1.
 # A negative whose clean rows have the same street AND number would be case3 here -- it is
 # counted and printed below.
 
+import jellyfish
 import pandas as pd
 
 SPLITS = ["train", "val", "test"]
@@ -35,10 +37,11 @@ def _neg_type(df):
     street_a, street_b = clean_street.loc[df["id_a"]].values, clean_street.loc[df["id_b"]].values
     number_a, number_b = clean_number.loc[df["id_a"]].values, clean_number.loc[df["id_b"]].values
     same_street, same_number = street_a == street_b, number_a == number_b
+    similar_street = pd.Series([jellyfish.jaro_winkler_similarity(a, b) > 0.8 for a, b in zip(street_a, street_b)], index=df.index)
 
     neg_type = pd.Series("case3", index=df.index)
     neg_type[same_street & ~same_number] = "case1"
-    neg_type[~same_street & same_number] = "case2"
+    neg_type[~same_street & similar_street & same_number] = "case2"
     neg_type[df["label"] == 1] = "case0"
 
     same_place_negatives = ((df["label"] == 0) & same_street & same_number).sum()
