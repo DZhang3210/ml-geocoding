@@ -12,8 +12,9 @@ import textdistance
 def _evaluation_function(s):
     """One pair-row -> one row of similarity features.
 
-    Expects columns StreetName_a/b, Address_a/b (house number), ZipCode_a/b,
-    number_missing, both_number_missing.
+    Expects columns street_a/b, number_a/b (house number), zip_a/b,
+    number_missing, both_number_missing -- i.e. a pairs frame passed through
+    helpers.pairs.add_number_street.
     House-number features (the 7 *_address / *_address_sim columns):
       - exactly one side has no number -> -1 (outside the 0-1 range of real similarities)
         and number_missing = 1;
@@ -23,19 +24,19 @@ def _evaluation_function(s):
     number_missing (0/1) is also returned as a feature.
     """
     # --- edit-based: Jaro-Winkler, normalised Levenshtein, Hamming (ZIP only, fixed length 5) ---
-    jw_street_sim = jellyfish.jaro_winkler_similarity(s["StreetName_a"], s["StreetName_b"])
-    jw_zipcode_sim =  jellyfish.jaro_winkler_similarity(s["ZipCode_a"], s["ZipCode_b"])
+    jw_street_sim = jellyfish.jaro_winkler_similarity(s["street_a"], s["street_b"])
+    jw_zipcode_sim =  jellyfish.jaro_winkler_similarity(s["zip_a"], s["zip_b"])
     jw_address_sim =  (
         -1 if s["number_missing"] else
         1 if s["both_number_missing"] else 
-        jellyfish.jaro_winkler_similarity(str(s["Address_a"]), str(s["Address_b"])))
-    lv_street_sim = 1 - jellyfish.levenshtein_distance(s["StreetName_a"], s["StreetName_b"])/(max(len(s["StreetName_a"]), len(s["StreetName_b"])))
-    lv_zipcode_sim = 1 - jellyfish.levenshtein_distance(s["ZipCode_a"], s["ZipCode_b"])/max((len(s["ZipCode_a"]), len(s["ZipCode_b"])))
+        jellyfish.jaro_winkler_similarity(str(s["number_a"]), str(s["number_b"])))
+    lv_street_sim = 1 - jellyfish.levenshtein_distance(s["street_a"], s["street_b"])/(max(len(s["street_a"]), len(s["street_b"])))
+    lv_zipcode_sim = 1 - jellyfish.levenshtein_distance(s["zip_a"], s["zip_b"])/max((len(s["zip_a"]), len(s["zip_b"])))
 
     lv_address_sim = (-1 if s["number_missing"] else 
         1 if s["both_number_missing"] else
-        1 - jellyfish.levenshtein_distance(str(s["Address_a"]), str(s["Address_b"]))/max(len(str(s["Address_a"])), len(str(s["Address_b"]))))
-    hm_zipcode_sim = 1 - jellyfish.hamming_distance(s["ZipCode_a"], s["ZipCode_b"])/5
+        1 - jellyfish.levenshtein_distance(str(s["number_a"]), str(s["number_b"]))/max(len(str(s["number_a"])), len(str(s["number_b"]))))
+    hm_zipcode_sim = 1 - jellyfish.hamming_distance(s["zip_a"], s["zip_b"])/5
 
     # --- token-based: (street/ZIP metric = character bigrams, house-number metric = single characters) ---
     metrics = {
@@ -50,12 +51,12 @@ def _evaluation_function(s):
     # Street guard: a string under 2 chars has no bigrams (Overlap divides by zero) -> 0.
     # Only hit by the 18 test addresses that are literally "1".
     for option, (initial, for_zip) in metrics.items():
-        street_score = initial.normalized_similarity(s["StreetName_a"], s["StreetName_b"]) if (len(s["StreetName_a"])>=2) and (len(s["StreetName_b"]) >= 2) else 0
-        zip_score = initial.normalized_similarity(s["ZipCode_a"], s["ZipCode_b"])
+        street_score = initial.normalized_similarity(s["street_a"], s["street_b"]) if (len(s["street_a"])>=2) and (len(s["street_b"]) >= 2) else 0
+        zip_score = initial.normalized_similarity(s["zip_a"], s["zip_b"])
         address_score = (
             -1 if s["number_missing"] else
             1 if s["both_number_missing"] else 
-            for_zip.normalized_similarity(str(s["Address_a"]), str(s["Address_b"])))
+            for_zip.normalized_similarity(str(s["number_a"]), str(s["number_b"])))
         n_gram_results[f"{option}_street"] = street_score
         n_gram_results[f"{option}_zip"] = zip_score
         n_gram_results[f"{option}_address"] = address_score

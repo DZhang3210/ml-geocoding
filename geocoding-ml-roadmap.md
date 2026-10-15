@@ -14,7 +14,7 @@
 | 1b  | Stronger feature-engineered baseline  | Lee, Claridades & Lee (2020)                    | 1-2 days  | 🔶 (paused) |
 | 2   | Real dataset                          | —                                               | 2-3 days  | ✅     |
 | 2b  | Real cross-source pair dataset        | — (Overture Maps Places + bridge files)         | 3-5 days  | 🔶     |
-| 2c  | Rule-based baseline                   | libpostal (normalization + dedupe)              | 1 day     | ⬜      |
+| 2c  | Rule-based baseline                   | libpostal (normalization + dedupe)              | 1 day     | 🔶     |
 | 3   | Hand-built matching architecture      | Reimers & Gurevych (2019)                       | 4-6 days  | ⬜      |
 | 4   | Reproduce a published DL approach     | Lin et al. (2020)                               | 4-5 days  | ⬜      |
 | 5   | Swap in pretrained transformer        | Siamese Transformer Networks (arXiv 2307.02300) | 3-4 days  | ⬜      |
@@ -135,6 +135,9 @@ This is a planning aid, not a commitment — if Week 2 runs into Week 3, that's 
 - **Task:** Use libpostal's normalization (`expand_address`) and its duplicate-detection functions to predict match/no-match on both the Stamford and Overture test sets. This is the standard rule-based tool for the problem — every learned model should be reported against it.
 - **Implementation instructions:** install the C library + Python bindings locally (the model files are a few GB — check disk); run on test sets only (nothing to train); evaluate with the same metrics/threshold policy as Step 1b.
 - **Finish threshold:** a "libpostal" row in the results table on both datasets, plus a sentence on where it beats/loses to the Step 1b model.
+- **Status note (2026-10-14): 🔶 in progress.** libpostal installed (build workaround in progress-log 2026-10-14). Decision-table rule implemented in `geocoding_ml/model_baseline/dumb_libpostal_model.py` (house number EXACT, road not NON (loose), ZIP5 equal; unit/house skipped). First Overture val run (loose road, Claude's run — David to reproduce): non-identical positives **66.9%** vs LR 81.8% / RF 85.4%; case2 44.1% vs ≤21% (n = 34, label noise suspected). **Next:** deliberation session → variant set (strict road, missing-number rule, rule 1?) + David's test plan as a table → build variants → val → single test run → Stamford → results row + one paragraph.
+- **Status note (2026-10-14, evening): 🔶 — val grid done on both datasets.** 8 settings (`road` strict/loose × `zip` strict/off × `number` strict/loose) run on Overture val and Stamford val; known-answer test passes. Overture non-identical positives 56.5–75.7% (best loose/off/loose, still < LR 81.8%); Stamford 36.0% under every setting. No single best setting (trade-offs per slice). Tables in the Diagnostics cell of `dumb_libpostal_baseline.ipynb`. **Next:** per-slice ZIP check, Stamford miss spot check, pick the setting(s) for the single test run → test on both datasets → results row + one paragraph → ✅.
+- **Status note (2026-10-15): 🔶 — test run done.** Reported settings strict/strict/strict and loose/off/loose; test non-identical positives Overture 52.3% / 71.9%, Stamford 39.0% / 39.0% (val 56.5 / 75.7 and 36.0); results judged valid (Diagnostics E in `dumb_libpostal_baseline.ipynb`). **Left for ✅:** results row + one paragraph; decide whether the Step 1b comparison is val-only or Step 1b also gets its single test run.
 
 ### 3 — Hand-build the matching architecture
 - **Paper:** Reimers & Gurevych (2019), *"Sentence-BERT: Sentence Embeddings using Siamese BERT-Networks"*

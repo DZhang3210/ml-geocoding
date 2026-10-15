@@ -4,8 +4,6 @@ from sklearn.preprocessing import StandardScaler  # only used by the SVC block
 from sklearn.ensemble import RandomForestClassifier
 from xgboost import XGBClassifier
 
-from helpers.check_model_performance import review_model_peformance
-
 # Fit each classifier on train features, predict on val features.
 # Returns {model_name: [preds, probs]}.
 def run_against_models(train_df, train_label, val_df):
@@ -42,8 +40,4 @@ def run_against_models(train_df, train_label, val_df):
     return ret
 
 
-# train features + labels, val features, val pairs frame + labels -> printed report
-def get_model_results (train_df, train_label, val_df, val_pairs, val_label):
-    ret = run_against_models(train_df, train_label, val_df)
-    review_model_peformance(ret, val_pairs, val_label)
-    return ret
+
