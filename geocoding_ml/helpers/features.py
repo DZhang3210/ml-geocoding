@@ -4,9 +4,12 @@ import pandas as pd
 import jellyfish
 import textdistance
 
+from helpers.pairs import CACHE_KEY, check_cache, pair_fingerprint
+
 # Features for [[df, cache_path], ...] (train, val, test).
-# If the cache file exists it is loaded as-is -- delete the caches whenever the parsing or
-# _evaluation_function changes, otherwise stale features are silently reused.
+# If the cache file exists it is loaded, after checking it was built from the same pair rows
+# (helpers.pairs.check_cache). Code changes aren't detected: delete the caches whenever the
+# parsing or _evaluation_function changes, otherwise stale features are silently reused.
 # Never pass a sample (e.g. .sample(2000)) through here: it would be cached as the full split.
 
 def _evaluation_function(s):
@@ -82,10 +85,10 @@ def get_processed_dfs(parquet_eval):
     ret = []
     for df,filepath in parquet_eval:
         if os.path.exists(filepath):
-            curr = pd.read_parquet(filepath)
+            curr = check_cache(pd.read_parquet(filepath), df, filepath)
         else:
             curr = _process_df(df)
-            curr.to_parquet(filepath, index = False)
+            curr.assign(**{CACHE_KEY: pair_fingerprint(df)}).to_parquet(filepath, index = False)
         ret.append(curr)
     if len(ret) != 3:
         raise IndexError("Did you modify parquet eval?")

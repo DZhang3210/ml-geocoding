@@ -37,3 +37,20 @@ def add_number_street(df):
     df["both_number_missing"] = df["number_a"].isna() & df["number_b"].isna()
     df["number_missing"] = (df["number_a"].isna() | df["number_b"].isna()) & ~df["both_number_missing"]
     return df
+
+
+# One hash per pair row from the columns every model reads (address + ZIP, both sides).
+# The feature and libpostal caches store it and compare it on load, so a cache built from an
+# older version of the pair files raises instead of being silently reused (2026-10-16).
+# It does not see code changes: still delete the caches when features.py or the libpostal rule changes.
+CACHE_KEY = "_pair_hash"
+_FINGERPRINT_COLS = ["address_a", "address_b", "zip_a", "zip_b"]
+
+def pair_fingerprint(df):
+    return pd.util.hash_pandas_object(df[_FINGERPRINT_COLS], index=False).values
+
+
+def check_cache(cached, df, path):
+    if CACHE_KEY not in cached.columns or len(cached) != len(df) or (cached[CACHE_KEY].values != pair_fingerprint(df)).any():
+        raise ValueError(f"Stale cache {path}: it doesn't match the current pair rows. Delete it and re-run.")
+    return cached.drop(columns=[CACHE_KEY])

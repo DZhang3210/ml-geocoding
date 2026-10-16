@@ -15,8 +15,9 @@
 #          the same threshold Overture's case2 uses)
 #   case3  anything else (easy / random, incl. same number on an unrelated street)
 # Rule-based, so a random easy pair that happens to sit on the same street lands in case1.
-# A negative whose clean rows have the same street AND number would be case3 here -- it is
-# counted and printed below.
+# A negative whose clean rows have the same street AND number is the same address under a
+# no-match label (duplicate rows in output.csv, e.g. several units at one address): 30 such
+# rows (28 train, 0 val, 2 test) are dropped below (decided 2026-10-16).
 
 import jellyfish
 import pandas as pd
@@ -44,7 +45,7 @@ def _neg_type(df):
     neg_type[~same_street & similar_street & same_number] = "case2"
     neg_type[df["label"] == 1] = "case0"
 
-    same_place_negatives = ((df["label"] == 0) & same_street & same_number).sum()
+    same_place_negatives = (df["label"] == 0) & same_street & same_number
     return neg_type, same_place_negatives
 
 
@@ -61,6 +62,7 @@ for split in SPLITS:
         "label": raw["label"],
     })
     out["neg_type"], same_place = _neg_type(raw)
+    out = out[~same_place]   # out shares raw's index
     out.to_parquet(f"Data/stamford_pairs_{split}.parquet", index=False)
 
-    print(split, len(out), out["neg_type"].value_counts().to_dict(), f"negatives with same clean street+number: {same_place}")
+    print(split, len(out), out["neg_type"].value_counts().to_dict(), f"dropped (same clean street+number): {same_place.sum()}")

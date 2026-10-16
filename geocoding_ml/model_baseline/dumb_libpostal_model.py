@@ -6,6 +6,8 @@ from typing import Literal
 import itertools
 import os
 
+from helpers.pairs import CACHE_KEY, check_cache, pair_fingerprint
+
 LANGUAGES = ["en"]
 
 
@@ -76,11 +78,12 @@ LIBPOSTAL_FEATURES = ["road_rule", "zip_rule", "number_rule"]
 def _get_libpostal_results(df, road, zip_rule, number, phase, dataset="Overture"):
     # dataset is in the filename so Overture and Stamford predictions never share a cache file
     file_name = f"{road}_{zip_rule}_{number}_{dataset}_{phase}_results.1.parquet"
-    if os.path.exists(f"libpostal_results/{file_name}"):
-        preds = pd.read_parquet(f"libpostal_results/{file_name}")
+    path = f"libpostal_results/{file_name}"
+    if os.path.exists(path):
+        preds = check_cache(pd.read_parquet(path), df, path)
     else:
         preds = libpostal_baseline(df, road, zip_rule, number)
-        preds.to_parquet(f"libpostal_results/{file_name}")
+        preds.assign(**{CACHE_KEY: pair_fingerprint(df)}).to_parquet(path)
     return preds
 
 

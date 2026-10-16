@@ -67,8 +67,9 @@ def find_random_sample_given_mask(
     labels: npt.NDArray[np.int64],
     mask: npt.NDArray[np.bool_] | int | None,
     attributes: list[str] | None = None,
-    title = None
-):  
+    title = None,
+    seed: int | None = 0,   # fixed so a sample can be re-shown; None = new sample each call
+):
   
     preds, labels = _as_flat_int_array(preds), _as_flat_int_array(labels)
     if isinstance(mask, (int, np.integer)):
@@ -77,7 +78,7 @@ def find_random_sample_given_mask(
             raise ValueError(f"mask must be 0-{len(masks) - 1}: {list(masks)}")
         title = list(masks.keys())[mask]
         mask = list(masks.values())[mask]
-    else:
+    elif mask is None:
         mask = np.ones(len(df), dtype = bool)
     df = df[mask]
     # .assign returns a copy; preds is an array (attaches by position),
@@ -89,4 +90,4 @@ def find_random_sample_given_mask(
 
     if title:
         print(f"{'='*10}{title}{'='*10}")
-    return df.sample(frac=1).head(10)
+    return df.sample(frac=1, random_state=seed).head(10)

@@ -5,11 +5,11 @@
 ## Where each step stands
 | Step | Status | One line | Detail in history |
 |---|---|---|---|
-| 1 — dumb baseline | ✅ 2026-09-21 | 3 Jaro-Winkler features + LogReg; Stamford test match F1 0.81 (accuracy 0.96 vs 0.90 always-no-match floor) | "Roadmap steps completed" |
-| 1b — feature-engineered baseline | 🔶 paused 2026-10-05 | 23 similarity features; LR/SVC/RF/XGB within noise on val → features are the bottleneck; single test run done 2026-10-15 (rows in `results.md`). Deferred: feature selection, street-type feature | 2026-10-05, 2026-10-15 |
+| 1 — dumb baseline | ✅ 2026-09-21 | 3 Jaro-Winkler features + LogReg; re-run on the shared schema 2026-10-16 → Step 1 rows in `results.md` (old F1 0.81 not comparable) | "Roadmap steps completed", 2026-10-16 (2nd) |
+| 1b — feature-engineered baseline | ✅ 2026-10-16 | 23 similarity features; on Overture test non-identical no better than Step 1's 3 (79.0 vs 79.2%), +5 pts on Stamford; Overture LR nearly ignores the street (weight 0.6 vs ZIP 16). Feature selection / street-type feature dropped | 2026-10-05, 2026-10-15, 2026-10-16 (2nd) |
 | 1b side lab | ✅ 2026-10-04 | Decision tree, RF, GB (reg + clf), XGBoost (reg + clf) from scratch, each matched against sklearn/xgboost (`Algorithm_Reimplementation/`) | "Roadmap steps completed" |
 | 2 — Stamford dataset | ✅ 2026-09-21 | Synthetic pairs from Stamford shapefile; split ids first, then pair; 1:9 pos:neg per split | "Roadmap steps completed" |
-| 2b — Overture real pairs | 🔶 | CT Overture ↔ Foursquare pairs, split by ZIP, case1/case2/easy negatives, 9:1 per split; hand-labelled test subset deferred | 2026-10-06 → 2026-10-13 |
+| 2b — Overture real pairs | 🔶 | CT Overture ↔ Foursquare pairs, split by ZIP, case1/case2/easy negatives, 9:1 per split; hand-labelled test subset (B1) next, before Step 3 | 2026-10-06 → 2026-10-13 |
 | 2c — libpostal baseline | ✅ 2026-10-15 | Overture test non-identical found 52.3–71.9% vs 79–83% for Step 1b, but rejects 73–80% of case2 vs 7–47%; Stamford 39% | 2026-10-14, 2026-10-15 |
 | 3 — siamese network | 🔶 | Pre-reading done 2026-10-16 (SBERT, Hadsell, Neculoiu, DeepMatcher, Weng); deliberation next | 2026-10-16 |
 
@@ -70,6 +70,7 @@
 - Group split methods (cumulative row share, round-robin, `GroupShuffleSplit`); per-place vs per-group caps (2026-10-09/10)
 - Blocking key as a realism assumption; stress-test sets reported separately; multi-pass blocking; confidence intervals for small-n rates (2026-10-12)
 - Headline metric dominated by easy rows → per-slice results; single-label slice "% correct" = recall or rejection rate (2026-10-14)
+- Filename-keyed caches can't detect changed data → per-row content hash (`check_cache`) (2026-10-16)
 - A settings grid needs a reproduction row; a setting that changes nothing needs explaining; known-answer tests must cover the reject direction; bare `except:` hides crashes; prediction caches keyed by setting + split (2026-10-14)
 - Test run once, after every choice is fixed; val-vs-test per slice; uniform gap across unchosen settings = data, not overfitting; small slices and mirrored pairs make swings noise; fair comparison needs the same split (2026-10-15)
 - A slice compares across datasets only if defined the same way; training mix of a slice changes the weights (2026-10-15)
@@ -89,6 +90,7 @@
 - Gradient boosting for regression and classification (log-odds, Newton leaves); model state stored with the model (2026-10-04)
 - XGBoost split objective: g/h, similarity, gain, λ, γ, `min_child_weight` (2026-10-04)
 - Recurring bug pattern: silent parameter fallbacks and positional-argument swaps → pass by keyword (2026-10-04)
+- Reading LR weights to explain a slice failure (Overture street weight 0.6 → case2); a 59-row slice can't rank models (2026-10-16, Claude-run)
 - A feature easy for a hand-built model can be hard for a learned one (case1) (2026-10-12)
 - libpostal vs LR: "same street *name*?" vs "similar *letters*?" (2026-10-15)
 
@@ -106,4 +108,4 @@
 - Working on address matching as the chosen narrow task (not parsing, not reverse geocoding)
 
 ## Next session plan (latest; earlier plans in the history)
-- **Plan (David, 2026-10-16):** Step 3 deliberation before any code — architecture, the small decisions and the separate experiments. Spec rows to fill: input (chars, vocab, padding, casing), encoder (BiLSTM layers/hidden), pooling (mean/max/last/attention), comparison + loss (head+CE vs contrastive), symmetry (symmetric features vs swapped copies + swap test), training data (Overture/Stamford/both, case mix, weighting), threshold (val), evaluation (`results.md` slices, watch case1), finish line (which slices beat which Step 1b row), compute (local vs Colab). Suggested start: pooling. Housekeeping from 2026-10-15 still open (see `open-questions-and-debugging.md`).
+- **Plan (2026-10-16, 2nd session):** finish Step 2b before Step 3 — A5 + B1. Deliberate the labelling protocol first (what counts as a match at building level, the unsure rule, which tools/maps for hard cases, blind = labels hidden), trial it on the 34 val case2 rows (A5), then sample and label the test subset (B1: a few hundred across `neg_type`, oversample the `number_mismatch` holdout), measure agreement per type, re-score Steps 1/1b/2c on it. Then Step 3 deliberation (spec rows as in the history's 2026-10-16 plan; start with pooling, and treat case2 training share as a first-class decision).
