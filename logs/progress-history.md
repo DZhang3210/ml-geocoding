@@ -235,3 +235,5 @@ Update this file as work happens. Append new entries; don't rewrite old ones unl
 5. **Model variance on small slices:** removing 28 training rows moved RF/XGB by one Stamford non-identical row (1.7 pts) in opposite directions — reminder that 59-row slices can't rank models.
 
 **Still open:** A5 + B1 (labelling protocol, val case2 trial, hand-labelled test subset) — need David's blind labels. Step 2b stays 🔶 until B1.
+
+**Addendum (same session, end):** David deferred A5 + B1 (labelling protocol, val case2 check, hand-labelled test subset) indefinitely — "way too much time to create a test set, since there's still a lot to do". Step 2b closed as ✅ with the subset deferred. Consequences logged: Overture numbers measure agreement with Overture's matcher; case2 (15 test rows, probable label noise) is reported with a caveat and kept out of Step 3's finish line. A cheaper middle ground if ever wanted: the 34-row val case2 check alone (~30 min).
