@@ -15,7 +15,7 @@
 | 2   | Real dataset                          | —                                               | 2-3 days  | ✅     |
 | 2b  | Real cross-source pair dataset        | — (Overture Maps Places + bridge files)         | 3-5 days  | 🔶     |
 | 2c  | Rule-based baseline                   | libpostal (normalization + dedupe)              | 1 day     | ✅     |
-| 3   | Hand-built matching architecture      | Reimers & Gurevych (2019)                       | 4-6 days  | ⬜      |
+| 3   | Hand-built matching architecture      | Reimers & Gurevych (2019)                       | 4-6 days  | 🔶     |
 | 4   | Reproduce a published DL approach     | Lin et al. (2020)                               | 4-5 days  | ⬜      |
 | 5   | Swap in pretrained transformer        | Siamese Transformer Networks (arXiv 2307.02300) | 3-4 days  | ⬜      |
 | 6   | Real error analysis                   | Kilic et al. (2024)                             | 2-3 days  | ⬜      |
@@ -152,6 +152,7 @@ This is a planning aid, not a commitment — if Week 2 runs into Week 3, that's 
   3. Implement contrastive loss (or start with plain binary cross-entropy on a similarity score if contrastive loss trips you up — it's a legitimate simpler starting point) yourself rather than importing a loss function you haven't inspected.
   4. Validate on a tiny synthetic toy set (a handful of obviously-matching and obviously-non-matching pairs) before touching your real dataset — this isolates architecture bugs from data bugs.
 - **Finish threshold:** A trained model, built without using a pre-existing siamese-network library, that beats the Step 1 baseline's F1 on your held-out test split — and you can explain, without notes, why the two encoders share weights.
+- **Status note (2026-10-16): 🔶 — pre-reading done, deliberation next.** Read SBERT, Hadsell et al. (2006), Neculoiu et al. (2016, closest template: char-level shared BiLSTM + mean pooling + contrastive loss), DeepMatcher (fixed distances perform poorly → `|u−v|` into a classifier), Weng's contrastive-learning post. Five pre-deliberation questions answered and reviewed (progress-log 2026-10-16). Step 3 stays a pure bi-encoder (cross-alignment is Step 4). The finish threshold above needs restating per slice (which `results.md` slices must beat which Step 1b row) — to settle in the deliberation, along with pooling, loss/head, symmetry (swap test), training data and compute.
 
 ### 4 — Reproduce a published deep learning approach
 - **Paper:** Lin et al. (2020), *"A deep learning architecture for semantic address matching"*
