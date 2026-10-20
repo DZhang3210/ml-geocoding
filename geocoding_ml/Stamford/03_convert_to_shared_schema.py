@@ -18,6 +18,8 @@
 # A negative whose clean rows have the same street AND number is the same address under a
 # no-match label (duplicate rows in output.csv, e.g. several units at one address): 30 such
 # rows (28 train, 0 val, 2 test) are dropped below (decided 2026-10-16).
+# Pairs with an empty / whitespace-only address on either side are dropped too (2026-10-20): the
+# siamese encoder can't take a length-0 string (pack_padded_sequence). 0 such rows when added.
 
 import jellyfish
 import pandas as pd
@@ -63,6 +65,8 @@ for split in SPLITS:
     })
     out["neg_type"], same_place = _neg_type(raw)
     out = out[~same_place]   # out shares raw's index
+    empty = (out["address_a"].str.strip() == "") | (out["address_b"].str.strip() == "")   # empty after whitespace normalisation
+    out = out[~empty]
     out.to_parquet(f"Data/stamford_pairs_{split}.parquet", index=False)
 
-    print(split, len(out), out["neg_type"].value_counts().to_dict(), f"dropped (same clean street+number): {same_place.sum()}")
+    print(split, len(out), out["neg_type"].value_counts().to_dict(), f"dropped (same clean street+number): {same_place.sum()}, dropped (empty address): {empty.sum()}")

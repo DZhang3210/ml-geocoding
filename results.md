@@ -38,8 +38,8 @@ Overall accuracy is left out because easy negatives dominate it. Data: shared pa
 **Setup.**
 - **Step 1:** the same default LogReg as Step 1b, on only the three Jaro-Winkler features (street, house number, ZIP), so Step 1 vs 1b differs only in the features. The old Step 1 number (F1 0.81, 2026-09-21) used the pre-schema Stamford columns and isn't comparable.
 - **Step 1b:** default hyperparameters, no class weighting, trained on the train split. This is Step 1b's single test run (2026-10-15).
-- **libpostal settings** are `road/zip/number`: strict/strict/strict is the rejection end, loose/off/loose the recall end. Both were chosen on val before test was run (`model_baseline/dumb_libpostal_baseline.ipynb`).
-- **Where the numbers come from:** `model_baseline/compare_libpostal_and_dumb.ipynb`, section 4 builds both tables (nothing here is copied by hand).
+- **libpostal settings** are `road/zip/number`: strict/strict/strict is the rejection end, loose/off/loose the recall end. Both were chosen on val before test was run (`model_baseline/05_dumb_libpostal_baseline.ipynb`).
+- **Where the numbers come from:** `model_baseline/06_compare_libpostal_and_dumb.ipynb`, section 4 builds both tables (nothing here is copied by hand).
 - **Stamford re-run (2026-10-16):** 30 negatives whose clean source rows are the same address (28 train, 2 test) were dropped from the Stamford pairs, and the Stamford rows re-run; no setting changed. Effect: libpostal (no training) gained exactly those 2 easy rows, i.e. both were "errors" that were really correct; the 1b models' easy slice went 99.6 → 100.0. RF and XGB moved by one row (1.7 pts) on non-identical, from the 28 fewer training rows — noise.
 - **Small slices:** Overture case2 has only 15 test rows (one row = 6.7 pts), mostly mirrored pairs, so its val↔test swings are noise. Stamford non-identical has 59 rows (one row = 1.7 pts).
 

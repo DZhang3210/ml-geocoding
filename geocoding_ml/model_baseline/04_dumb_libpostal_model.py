@@ -78,7 +78,8 @@ LIBPOSTAL_FEATURES = ["road_rule", "zip_rule", "number_rule"]
 def _get_libpostal_results(df, road, zip_rule, number, phase, dataset="Overture"):
     # dataset is in the filename so Overture and Stamford predictions never share a cache file
     file_name = f"{road}_{zip_rule}_{number}_{dataset}_{phase}_results.1.parquet"
-    path = f"libpostal_results/{file_name}"
+    # relative to this file, so notebooks in other folders (e.g. siamese_model/) share the same cache
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "libpostal_results", file_name)
     if os.path.exists(path):
         preds = check_cache(pd.read_parquet(path), df, path)
     else:

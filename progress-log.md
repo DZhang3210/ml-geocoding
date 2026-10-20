@@ -11,7 +11,7 @@
 | 2 — Stamford dataset | ✅ 2026-09-21 | Synthetic pairs from Stamford shapefile; split ids first, then pair; 1:9 pos:neg per split | "Roadmap steps completed" |
 | 2b — Overture real pairs | ✅ 2026-10-16 (labelled subset deferred) | CT Overture ↔ Foursquare pairs, split by ZIP, case1/case2/easy negatives, 9:1 per split; hand-labelled test subset deferred indefinitely (David: too much time) → Overture numbers = agreement with Overture's matcher; case2 can't support claims | 2026-10-06 → 2026-10-13 |
 | 2c — libpostal baseline | ✅ 2026-10-15 | Overture test non-identical found 52.3–71.9% vs 79–83% for Step 1b, but rejects 73–80% of case2 vs 7–47%; Stamford 39% | 2026-10-14, 2026-10-15 |
-| 3 — siamese network | 🔶 | Pre-reading done 2026-10-16 (SBERT, Hadsell, Neculoiu, DeepMatcher, Weng); deliberation next | 2026-10-16 |
+| 3 — siamese network | 🔶 | Spec decided 2026-10-18; model built stage by stage in `siamese_model/` and overfits the toy set (0.693 → 0.0003, 10/10) 2026-10-20; no real-data training yet — spec rows (ZIP, data, threshold, finish line, compute) next | 2026-10-16, 2026-10-18 → 10-20 |
 
 ## Papers reviewed
 | Paper | Date reviewed | One-line takeaway |
@@ -101,6 +101,12 @@
 - `[u; v; |u−v|]`: per-dimension differences let the head learn a weighted distance; symmetry and the swap test (2026-10-16)
 - Head vs cosine: pair classification vs retrieval; both need a threshold chosen on val (2026-10-16)
 - Mean pooling dilutes a one-digit change; a single-distance threshold can't separate case1 from a one-letter typo; the head can't recover what pooling dropped (2026-10-16)
+- Masked pooling: `-inf` for max only, mean = mask-multiply ÷ true length; BiLSTM backward pass reads pads → `pack_padded_sequence`; `pad_packed_sequence` fills 0, `total_length` (2026-10-18)
+- Why `predict` applies `sigmoid`: training applies it inside `BCEWithLogitsLoss` (fused, numerically stable); the model never sees `y`; `zero_grad` first in the loop (2026-10-20)
+- A test only counts if a broken implementation would fail it (e.g. the pad must be a value that would change the answer); gradient must reach real positions, not just avoid pads (2026-10-19)
+- Bidirectional output = concat of both directions (2×hidden); `torch.equal` for copies only, `allclose` for computed floats; LSTM parameter structure (4 stacked gates, `ih`/`hh`, two biases) (2026-10-19)
+- PyTorch basics: registration (attribute assignment) ≠ `requires_grad`; `no_grad` = no graph recorded, also for manual updates; `eval()` only flips `training` (dropout/batchnorm), independent of `no_grad`; `collate_fn` gets a list of samples, returns one batch (2026-10-19)
+- Vocab from train only + rare-char cutoff; two-stage stacking leakage (fit stage 2 on unseen pairs); ZIP-blocked hard negatives → ZIP weight comes from easy negatives (2026-10-18)
 
 ## Background already established
 - Software engineer, ex-Ping Data Intelligence (Ping.Maps, tile server pipelines, SQL optimization, SOV text representation for ML pretraining)
@@ -108,4 +114,4 @@
 - Working on address matching as the chosen narrow task (not parsing, not reverse geocoding)
 
 ## Next session plan (latest; earlier plans in the history)
-- **Plan (2026-10-16, end):** Steps 1, 1b, 2, 2b, 2c all closed; the hand-labelled subset (A5/B1) is deferred indefinitely. Next: **Step 3 deliberation** before any code. Spec rows: input (chars, vocab, padding, casing), encoder (BiLSTM layers/hidden), pooling (mean/max/last/attention), comparison + loss (head+CE vs contrastive; Neculoiu's L− open question), symmetry (swap test), training data (Overture/Stamford/both, **case2 share/weighting**: the Step 1 weights show the Overture model ignores the street), threshold (val), evaluation (`results.md` slices), finish line (non-identical matches + case1 vs the Step 1 / 1b rows; case2 reported with a label-noise caveat, not part of the finish line), compute (local vs Colab). Start with pooling.
+- **Plan (2026-10-20, end):** Step 3 model + toy overfit done (`siamese_model/` 01–12). **Next session = deliberation, no code first:** settle the five open spec rows (see `open-questions-and-debugging.md`, first item): ZIP design A vs B (+ the ZIP-text-in-address diagnostic), training data + case2 weighting, threshold policy, finish line per slice vs Step 1/1b, compute (time one real epoch on CPU). Then real training + pooling ablation (mean vs max × 3 seeds) → single test run → `results.md`. Leftovers done (predict-doesn't-train + [0, 1] tests added in 12, pass; `MaskedPooling` tests read; contamination test dropped).
