@@ -11,7 +11,7 @@
 | 2 — Stamford dataset | ✅ 2026-09-21 | Synthetic pairs from Stamford shapefile; split ids first, then pair; 1:9 pos:neg per split | "Roadmap steps completed" |
 | 2b — Overture real pairs | ✅ 2026-10-16 (labelled subset deferred) | CT Overture ↔ Foursquare pairs, split by ZIP, case1/case2/easy negatives, 9:1 per split; hand-labelled test subset deferred indefinitely (David: too much time) → Overture numbers = agreement with Overture's matcher; case2 can't support claims | 2026-10-06 → 2026-10-13 |
 | 2c — libpostal baseline | ✅ 2026-10-15 | Overture test non-identical found 52.3–71.9% vs 79–83% for Step 1b, but rejects 73–80% of case2 vs 7–47%; Stamford 39% | 2026-10-14, 2026-10-15 |
-| 3 — siamese network | 🔶 | Spec decided 2026-10-18; model built stage by stage in `siamese_model/` and overfits the toy set (0.693 → 0.0003, 10/10) 2026-10-20; no real-data training yet — spec rows (ZIP, data, threshold, finish line, compute) next | 2026-10-16, 2026-10-18 → 10-20 |
+| 3 — siamese network | ✅ 2026-10-23 | Char-level siamese BiLSTM, no ZIP features: Overture test non-identical found 83.6 (val 87.1) vs Step 1 79.2 / RF 83.0 — beats Step 1 by ≈ seed noise, ties RF; pooling mean = max within seed noise; `results.md` row + paragraph | 2026-10-16, 2026-10-18 → 10-23 |
 
 ## Papers reviewed
 | Paper | Date reviewed | One-line takeaway |
@@ -107,6 +107,16 @@
 - Bidirectional output = concat of both directions (2×hidden); `torch.equal` for copies only, `allclose` for computed floats; LSTM parameter structure (4 stacked gates, `ih`/`hh`, two biases) (2026-10-19)
 - PyTorch basics: registration (attribute assignment) ≠ `requires_grad`; `no_grad` = no graph recorded, also for manual updates; `eval()` only flips `training` (dropout/batchnorm), independent of `no_grad`; `collate_fn` gets a list of samples, returns one batch (2026-10-19)
 - Vocab from train only + rare-char cutoff; two-stage stacking leakage (fit stage 2 on unseen pairs); ZIP-blocked hard negatives → ZIP weight comes from easy negatives (2026-10-18)
+- Early stopping: patience (not val-loss slope), keep the best epoch not the last; `state_dict()` is live → `deepcopy`; a checkpoint needs vocab + config too (2026-10-21)
+- Loss floors: 0.693 = coin flip, 0.325 = always predicting the 1:9 base rate; train ≪ val from epoch 0 ≠ overfitting (2026-10-21)
+- Threshold tuning only slides along a model's trade-off; 0.5 is principled when train/val/test share the class mix (2026-10-21)
+- Guardrail order: a below-guardrail first "best" blocks every later epoch; a broken-run check must be shown to flag a known-broken run (2026-10-22)
+- 3 seeds → min–max range, not std; slice-size margins (n = 15 → ±25 pts at 50%) (2026-10-21)
+- Unit tests sit directly under the function they test (David, 2026-10-22)
+- Comparing settings over seeds: a gap counts only if bigger than the within-setting seed spread; tie-break rule stated before computing; best-of-epochs val is optimistic; a pre-set seed avoids sending the luckiest run to test (2026-10-23)
+- Held-out 100% ≠ overfitting (overfitting = train ≫ held-out); val loss is dominated by easy rows (2026-10-23)
+- Why shared weights: same input type → same string must give the same vector (identical pairs, symmetry); two encoders could learn side/source-specific shortcuts (here side A = Overture, side B = Foursquare); vs CLIP, where two modalities need two encoders (2026-10-23)
+- A result that lands exactly on a no-learning value (90% accuracy at 1:9, 0.325 / 0.693 loss) → suspect the pipeline first (2026-10-23)
 
 ## Background already established
 - Software engineer, ex-Ping Data Intelligence (Ping.Maps, tile server pipelines, SQL optimization, SOV text representation for ML pretraining)
@@ -114,4 +124,4 @@
 - Working on address matching as the chosen narrow task (not parsing, not reverse geocoding)
 
 ## Next session plan (latest; earlier plans in the history)
-- **Plan (2026-10-20, end):** Step 3 model + toy overfit done (`siamese_model/` 01–12). **Next session = deliberation, no code first:** settle the five open spec rows (see `open-questions-and-debugging.md`, first item): ZIP design A vs B (+ the ZIP-text-in-address diagnostic), training data + case2 weighting, threshold policy, finish line per slice vs Step 1/1b, compute (time one real epoch on CPU). Then real training + pooling ablation (mean vs max × 3 seeds) → single test run → `results.md`. Leftovers done (predict-doesn't-train + [0, 1] tests added in 12, pass; `MaskedPooling` tests read; contamination test dropped).
+- **Plan (2026-10-23, after Step 3 ✅):** next actions from the Step 3 wrap-up: (1) commit the Step 3 work; (2) ZIP-text diagnostic; (3) case2 data step (semi-synthetic street-swap slice) + re-score every model; (4) Step 4 (Lin et al. 2020, word2vec + ESIM): paper review per the CLAUDE.md four-part format, then deliberation → spec table. Order of (2)–(4) is David's call.

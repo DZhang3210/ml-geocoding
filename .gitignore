@@ -12,3 +12,8 @@ geocoding_ml/model_baseline/libpostal_results/
 # OS / editor clutter
 .DS_Store
 .ipynb_checkpoints/
+
+# Step 3 model checkpoints + training histories (rebuilt by 13_real_training.ipynb)
+geocoding_ml/siamese_model/checkpoints/
+geocoding_ml/siamese_model/broken/
+

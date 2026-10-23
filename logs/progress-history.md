@@ -289,3 +289,88 @@ David wrote `SiameseMatcher` in `10_siamese_step.ipynb` (Claude supplied the not
 **Session end (2026-10-20).** Step 3 toy-set build complete (to-do rows 1–8). Roadmap Step 3 note updated (old note → `logs/roadmap-status-history.md`). Open questions: Neculoiu L− and the raw-newline note resolved (→ history); new open item listing the five spec rows to settle before real training. Leftovers for David: read the `MaskedPooling` tests Claude finished; fix the constant loss assert and add the two missing tests in `12_training_step.ipynb`; optional BiLSTM contamination test. Nothing committed this session.
 **Update (2026-10-20):** David has read the `MaskedPooling` tests; the optional BiLSTM contamination test is dropped (padding tests already cover packing).
 **Update (2026-10-20):** David added the predict-doesn't-train and [0, 1] tests to `12_training_step.ipynb`; all pass (Claude ran a copy). The loss assert still compares constants (`0.0003 < 0.01`), which David chose to leave.
+
+
+## 2026-10-21 → 10-22 — Step 3: real-training spec, notebook, experiment queue started
+
+**Mode:** deliberation (2026-10-21, one decision at a time — David asked to talk it through rather than be handed a plan), then execution in `siamese_model/13_real_training.ipynb`.
+
+**Spec decided (David):**
+
+| Row | Decision |
+|---|---|
+| Ensemble? | No — Step 3 trains the siamese model alone (option A). Option B (siamese score + ZIP → LR) only puts the ZIP back for a like-for-like comparison; decided after the val runs |
+| Training data | Overture only; Stamford dropped from Step 3 entirely (no out-of-distribution check either) |
+| case2 in training | Left as is (172 rows): even if weighting helped, 15 noisy test rows couldn't show it |
+| More case2 data | Not now: run the full train → evaluate cycle first; a case2 data step (semi-synthetic street-swap slice or multi-state pull) comes later, then re-score all models |
+| Reference | LogReg 79.0 and RF 83.0 (Overture test non-identical found), no pass/fail line |
+| "Better" | Only from mean vs max × 3 seeds (seed spread); the initial run is descriptive |
+| Guardrail | case1 ≥ 98%. David's prediction: easy rejection < 98% without ZIP |
+| Threshold | 0.5, same as 1b (correction: 1b never tuned a threshold — `model.predict`). David: tuning on val would make up for the model's understanding; refinement: it only slides along the trade-off, which a val curve would show |
+| Early stopping | Best = highest val non-identical found among epochs with case1 ≥ 98%, tie → lower val loss; patience 3, max 20 epochs |
+| Broken-run checks | untrained val loss ≈ 0.693; train loss parked at ≈ 0.325 (base rate, derived by David); NaN; found 0% |
+| Saved | best `state_dict` + vocab + config + seed + best row, per-epoch history CSV |
+| Optimiser | Adam 1e-3, clip 1.0, batch 64 kept from the toy run |
+
+**Execution.** Claude built the notebook boilerplate (spec header, provided setup, piece banks for `evaluate` / timing / `run_training` / the queue, plain English for `is_better` and the checks); smoke-tested the banks on a 640-row subset. David wrote: truncation count (6 train / 0 val strings > 85 chars, all one UConn Foursquare string ending in town + ZIP), loaders, `evaluate`, timing (≈ 204 s train + 44 s val ≈ 4.1 min/epoch → MAX_EPOCHS 20, PATIENCE 3, CPU, no Colab), `is_better` (first version let a below-guardrail row become best when `best is None` — the untrained model's profile is found 100 / case1 0 — fixed by David after review), `run_training`, the queue (mean/max × seeds 0–2, skip finished runs, save after each), the `evaluate` unit test, the summary cell. **Claude wrote at David's request:** `is_better` unit tests (another session), `broken_run_problems` + tests (fires only "val loss after epoch 0 = 0.992" on the broken run), `best is None` → keep last-epoch weights. Incidental bugs fixed by Claude: 5 rows in the debugging log (timing `batch_size`, `val_lose`, duplicate `evaluate`, list `.to_csv`, `index=False` placement; loaders rebuilt unshuffled in the timing cell; queue `SEED`/`seed` and `pooling` config; summary path / `len(...)` parenthesis / `best is None` / `history.groupby`).
+
+**Runs.** First run (2026-10-21, crashed on `.to_csv` after epoch 0): train 0.047, val loss 0.024, val found 78.7, case1 99.85, easy 99.94. Second run (20 epochs): broken — train 0.036 vs val loss 0.99 at epoch 0, found 0% until epoch 7, 37% at best. David: unshuffled train loader; on-disk evidence conflicts (`RandomSampler` after the run) — open question; files in `siamese_model/broken/`. Then the notebook was tidied (resolved sections lost their piece banks; unit tests moved directly under the function they test — David's point; broken-run checks moved before the queue) and **the 6-run queue was started 2026-10-22.** Claude got the shuffle diagnosis wrong once in each direction this session — the record of both is in the notebook's Diagnostics.
+
+**Concepts explained:** early stopping by patience (not val-loss slope) and keeping the best epoch, not the last; `state_dict()` returns live tensors → `deepcopy`; what a checkpoint needs (vocab + config, not just weights; why: the test run must use the exact chosen model); the 0.325 base-rate loss floor; train ≪ val loss from epoch 0 is not overfitting (overfitting opens gradually); a below-guardrail first row would block every later one; a broken-run check only counts if it flags a known-broken run; assert-cells vs a function returning problems; 3 seeds → report min–max, not std; binomial margins vs slice size (15 → ±25 pts); threshold tuning slides along the trade-off; semi-synthetic case2 by street swap (certain labels).
+
+**Housekeeping:** `geocoding_ml/siamese_model/checkpoints/` and `broken/` git-ignored; `13_real_training.ipynb` listed in `CLAUDE.md`. Not touched: an uncommitted diff in `Overture/02_processing_overture_data.ipynb` (not from this session).
+
+## 2026-10-23 — Housekeeping: `12_training_step.ipynb` cleaned up
+
+At David's request, Claude stripped the puzzle scaffolding now that the step is done: piece banks and `# slot N` comments removed; the separate import cell folded into setup; §1 now describes `train_epoch` / `predict` (in `12_training_step.py`) in two bullets; tests sit directly under the overfit run. Bug found and fixed in the tests: `assert 0.0003 < 0.01` checked a hard-coded number → `assert loss < 0.01` (debugging log). Re-ran top to bottom: same seeded losses (0.6928 → 0.0003), all tests pass. No code in the `.py` changed.
+
+## 2026-10-23 — Housekeeping: Step 3 analysis set-up (`13_real_training.py`, `14_training_analysis.ipynb`)
+
+At David's request ("get it imported/organized"), Claude moved the reusable pieces of `13_real_training.ipynb` into `13_real_training.py`: `evaluate`, `is_better`, `broken_run_problems` (unchanged) plus `THRESHOLD`, `CASE1_GUARDRAIL`, `COIN_FLIP_LOSS`, `BASE_RATE_LOSS`, `CHECKPOINT_DIR`, and `load_run` / `rebuild_model` (the loading lines of David's summary cell, wrapped). Notebook 13 imports them; the unit tests stay under each section; `run_training` stays in the notebook (it reads §2's loaders); the summary cell now loads through `load_run` / `rebuild_model`. **Queue cell restored:** a save at 02:22 today had replaced §8's queue loop with an unfinished copy of `run_training` (outputs kept); the loop was restored from VS Code's local history (02:00 snapshot), the only cell that differed. New `14_training_analysis.ipynb`: setup, val data + loader, `summary` / `histories[(pooling, seed)]` loading cell, then empty sections for §1 pooling choice, §2 option B, §3 broken-run question, §4 single test run, and Diagnostics. Checked in a fresh kernel without saving outputs: 13's setup, `evaluate` / `is_better` / `broken_run_problems` tests and the summary reload check (all 6 checkpoints match their saved `best`) pass; 14's setup and loading cells run. Backups of both notebooks before the edits are in the session scratchpad.
+
+## 2026-10-23 — Step 3 assessment: val decisions (`14_training_analysis.ipynb` §1–3)
+
+**Mode:** wrap-up/assessment; David computed and judged, Claude explained the method (David, mid-session: "don't show me stuff or make calculations"; saved as a memory).
+
+**Decisions (David):** (1) **Pooling: tie.** Rule: a gap counts only if bigger than the within-pooling seed spread. Found: ranges overlap, max wins 2/3 seeds → tie; val loss: gap 0.0019 < seed spreads 0.0026 (mean) / 0.0032 (max) → tie. → **mean, seed 0**: mean on precedent (SBERT, Neculoiu), seed 0 as the pre-set default, not picked on val. Every run beats LogReg 81.8 / RF 85.4 on val found. (2) **Option B: no.** Easy rejection 99.8–99.9% without the ZIP (David's < 98% prediction wrong); a fraction of a point behind LR's 100.0 on the easiest slice vs a large gain on found. Corrected in discussion: David's "LR seems closer to overfitting" — LR's 100% is held-out and comes from the ZIP features. Caveat: some strings carry town + ZIP text. (3) **Broken run: resolved** on David's own sampler check (sequential loader), consistent with `mean` / seed 0 training normally from epoch 0.
+
+**Housekeeping (Claude):** notebook 12 cleaned up (scaffolding removed; always-true `assert 0.0003 < 0.01` → `assert loss < 0.01`); `13_real_training.py` created and notebook 13 rewired, queue cell restored from VS Code history (earlier entry today); `14_training_analysis.ipynb` set up, then neatened (§1 stale `pool_mode` label and order-dependent `iloc` difference; debugging log) with observation cells under §1 and §2 and the §3 resolution written up; re-run top to bottom, same numbers.
+
+**Concepts explained:** run score = setting quality + seed luck; compare the gap with the within-setting spread; best-of-epochs selection is optimistic; why a pre-set seed beats the best-looking one; why easy negatives don't need the ZIP; held-out 100% isn't overfitting; val loss is dominated by easy rows; "found" = non-identical positives only (David had thought it was the identical slice).
+
+## 2026-10-23 (cont.) — Step 3 test run and close ✅
+
+**Test run (`14_training_analysis.ipynb` §4, David):** first attempt passed `predict`'s probabilities to `review_typical_slices` without the threshold → int cast truncated all to 0 → "always no match" (0% found, 100% rejected, 90.0% accuracy = the 1:9 mix); fixed with `>= THRESHOLD` (debugging log). Test non-identical found **83.6**, identical 100.0, case1 99.4, case2 33.3 (5/15), easy 99.9; val (same model) 87.1 / 100.0 / 99.4 / 29.4 / 99.9 (val found matches the checkpoint's saved `best`).
+
+**David's conclusions:** in line with RF / XGBoost (gap to RF 0.6 pts, inside the 3.8-pt seed spread); beats Step 1 by 4.4 pts, "close to seed-to-seed noise"; val → test drop comparable to the untuned baselines' → split difference (ZIP split), and the val-based choices didn't inflate it much; done without ZIP features — positives are where that matters, case1/case2 are ZIP-blocked, easy negatives separable by street text. Corrections in discussion: the "thousandths" seed spread was val loss, not found; a shared val → test drop isn't noise between models; "5%" → 4.4 percentage points.
+
+**Finish line:** test beats Step 1 ✓; weight sharing explained by David (same string must give the same result; two encoders could diverge and learn side-specific patterns — here side A = Overture, side B = Foursquare). Step 3 ✅. `results.md`: Overture row, Step 3 setup note, Step 3 paragraph (drafted by Claude from David's conclusions, reviewed by David).
+
+**Wrap-up tables:** below (spec ↔ code, results, next actions).
+
+| Spec row | Implemented in |
+|---|---|
+| Data: Overture only, train → val, test once | `helpers/pairs.py` `load_pairs`; loaders in `13_real_training.ipynb` §2 and `14_training_analysis.ipynb` (`PairDataset`, `make_collate` in `11_data_plumbing.py`) |
+| Characters → ids, vocab from train only, max length 85 | `01_vocab_step.py` (`normalize`, `build_vocab`), `03_encode_batch_step.py` (`encode_batch`) |
+| Model: char emb 32 → BiLSTM 1 × 128 → masked mean / max pooling, shared encoder, head `[\|u−v\|; u⊙v]` | `08_encoder_step.py` (`CharEmbedder`, `BiLSTM`, `MaskedPooling`, `Encoder`, `SiameseMatcher`) |
+| Adam 1e-3, clip 1.0, batch 64, `BCEWithLogitsLoss` | `12_training_step.py` `train_epoch`; optimiser + loss in `run_training` (13 §6) |
+| Threshold 0.5; per-epoch val loss / found / case1 / easy | `13_real_training.py` `THRESHOLD`, `evaluate` |
+| Best epoch (found, case1 ≥ 98%, tie → val loss); patience 3, max 20 | `13_real_training.py` `is_better`; `run_training` (13 §6) |
+| Broken-run checks | `13_real_training.py` `broken_run_problems`; tests 13 §7 |
+| Mean / max × seeds 0–2, saved per run | 13 §8 queue; `load_run`, `rebuild_model`; reload check in 13's summary cell |
+| Pooling choice, option B, broken-run cause | `14_training_analysis.ipynb` §1–3 (observation cells) |
+| Single test run → `results.md` | `14_training_analysis.ipynb` §4 |
+
+| Model (Overture) | Identical found | **Non-identical found** | Case1 rejected | Case2 rejected | Easy rejected |
+|---|---|---|---|---|---|
+| Step 1 LogReg (3 features) | 99.4 (99.5) | **79.2** (80.3) | 98.5 (98.3) | 6.7 (8.8) | 100.0 (100.0) |
+| Step 1b RF (previous best) | 100.0 (100.0) | **83.0** (85.4) | 99.5 (99.5) | 6.7 (23.5) | 100.0 (100.0) |
+| **Step 3 siamese (mean, seed 0)** | 100.0 (100.0) | **83.6** (87.1) | 99.4 (99.4) | 33.3 (29.4) | 99.9 (99.9) |
+
+| Next action | Where | Done when |
+|---|---|---|
+| Commit the Step 3 work | notebooks 12–14, `13_real_training.py`, `results.md`, logs | committed on `main` (David's go-ahead) |
+| ZIP-text diagnostic | `14_training_analysis.ipynb` Diagnostics | share of `address_a` / `address_b` ending in a 5-digit run, and how often it equals `zip_a` / `zip_b`, recorded; `results.md` qualifier updated with the number |
+| Case2 data step (semi-synthetic street swap) | new Overture notebook (`03_…`) | a val + test case2 slice of ≥ 400 pairs with certain labels; every `results.md` model re-scored on it; new column |
+| Step 4 kickoff (Lin et al. 2020, word2vec + ESIM) | paper review per CLAUDE.md, then deliberation | four-part review logged; spec table agreed |
+| Tidy `14_training_analysis.ipynb` | §4 cells | seed-noise cell renamed (it reuses `pooling_means`, overwriting §1's), commented `evaluate` lines removed |
