@@ -12,6 +12,7 @@
 | 2b — Overture real pairs | ✅ 2026-10-16 (labelled subset deferred) | CT Overture ↔ Foursquare pairs, split by ZIP, case1/case2/easy negatives, 9:1 per split; hand-labelled test subset deferred indefinitely (David: too much time) → Overture numbers = agreement with Overture's matcher; case2 can't support claims | 2026-10-06 → 2026-10-13 |
 | 2c — libpostal baseline | ✅ 2026-10-15 | Overture test non-identical found 52.3–71.9% vs 79–83% for Step 1b, but rejects 73–80% of case2 vs 7–47%; Stamford 39% | 2026-10-14, 2026-10-15 |
 | 3 — siamese network | ✅ 2026-10-23 | Char-level siamese BiLSTM, no ZIP features: Overture test non-identical found 83.6 (val 87.1) vs Step 1 79.2 / RF 83.0 — beats Step 1 by ≈ seed noise, ties RF; pooling mean = max within seed noise; `results.md` row + paragraph | 2026-10-16, 2026-10-18 → 10-23 |
+| 4 — ESIM reproduction | 🔶 | Spec decided 2026-10-24 (word2vec 200 + ESIM 200, frozen, pure first, char expansion); next: word2vec set-up, then the case2 data step | 2026-10-23 → 10-24 |
 
 ## Papers reviewed
 | Paper | Date reviewed | One-line takeaway |
@@ -23,6 +24,8 @@
 | Neculoiu et al. (2016), siamese recurrent networks for job titles | 2026-10-16 | Closest Step 3 template: char-level 4-layer BiLSTM, mean pooling, dense, cosine, contrastive loss (L+ scaled ¼ for 4:1 neg:pos); negative-loss condition looks reversed as printed (open question). |
 | Mudgal et al. (2018), DeepMatcher | 2026-10-16 | Embed → summarise → compare; fixed distances perform poorly, `\|u−v\|` into a classifier up to +40% F1; soft-alignment models win on small data at much higher training cost. |
 | Lilian Weng (2021), "Contrastive Representation Learning" (blog) | 2026-10-16 | Reference for contrastive and triplet losses; the margin stops pushing satisfied negatives and prevents collapse. |
+| Lin, Kang, Wu, Du & Liu (2020), "A deep learning architecture for semantic address matching" (IJGIS 34(3)) | 2026-10-23 (abstract + secondary sources; full text paywalled) | Step 4's paper: word2vec trained on the address corpus → ESIM (BiLSTM encode → soft-alignment cross-attention → `[a; ã; a−ã; a⊙ã]` → BiLSTM → avg+max pool → MLP) on Shenzhen addresses; P/R/F1 0.97. A cross-encoder, unlike Step 3's bi-encoder. Dataset details, baselines and settings unverified |
+| Ramani & Borrajo (2024), "Methods for Matching English Language Addresses" (arXiv 2403.12092, J.P. Morgan AI Research) | 2026-10-23 | ESIM adapted to English (US synthetic, 20k pairs, house-number hard negatives; GloVe instead of word2vec): ≈ 0.94 test accuracy, + character embeddings ≈ 0.95 (5 seeds); low out-of-domain precision. Table numbers from a model extraction — check the PDF before citing |
 
 ## Concepts already explained (one line each; details and dates in `logs/progress-history.md`)
 **pandas / Python mechanics**
@@ -118,10 +121,21 @@
 - Why shared weights: same input type → same string must give the same vector (identical pairs, symmetry); two encoders could learn side/source-specific shortcuts (here side A = Overture, side B = Foursquare); vs CLIP, where two modalities need two encoders (2026-10-23)
 - A result that lands exactly on a no-learning value (90% accuracy at 1:9, 0.325 / 0.693 loss) → suspect the pipeline first (2026-10-23)
 
+**Step 4 prep (ESIM / word2vec)**
+- Decomposable attention (Parikh 2016): F → e_ij = F(a)·F(b) → soft-align (β_i, α_j) → compare G([a; β]) per word → aggregate by **sum** → H → class; no RNN = no word order (2026-10-24)
+- ESIM (Chen 2017): BiLSTM = *intra*-sequence context, then *inter*-sequence soft alignment (plain dot product); enhancement `[a; ã; a−ã; a⊙ã]` (Step 3 head idea per word); composition BiLSTM (not attention); avg + max pooling instead of sum (length-independent) → MLP (2026-10-24)
+- word2vec skip-gram with negative sampling is itself a binary classifier (real neighbour vs random negative) — same training shape as the matcher (2026-10-24)
+- word2vec sees text, never labels: training it on all splits is a *coverage* question, not label leakage; caveat = test-town words get vectors only from test text (2026-10-24)
+- Frozen vs fine-tuned embeddings: fine-tuning moves only tokens seen in train pairs → inconsistent spaces (2026-10-24)
+- Word-level risk for case1: `123` / `124` share contexts → near-identical vectors; rare numbers → UNK; per-word fixed random OOV vectors (not zeros / one shared UNK); Parikh's hashed OOV buckets (2026-10-24)
+- A guardrail only sets a floor: selecting on found above it still trades case1 away; report the metric's range across epochs to separate selection from model failure (2026-10-24)
+- Embedding / hidden size: GloVe's 300 reflects billions of words, not a rule; hidden = embedding is a convention; nearest-neighbour check to validate word2vec size (2026-10-24)
+- Soft alignment (ESIM §3.2 / Parikh "Attend"): score grid e (len_a × len_b), softmax per row/column, weighted sum of the other address's word vectors = a word's translation (d,); both directions needed (one-way misses the other side's unmatched words, breaks symmetry); softmax ≠ √d scaling. Note: `Geocoding ML NOTES/Notes/Soft alignment (ESIM, Parikh).md` (2026-10-23)
+
 ## Background already established
 - Software engineer, ex-Ping Data Intelligence (Ping.Maps, tile server pipelines, SQL optimization, SOV text representation for ML pretraining)
 - Strong GPT-2-level transformer/NN background coming in
 - Working on address matching as the chosen narrow task (not parsing, not reverse geocoding)
 
 ## Next session plan (latest; earlier plans in the history)
-- **Plan (2026-10-23, after Step 3 ✅):** next actions from the Step 3 wrap-up: (1) commit the Step 3 work; (2) ZIP-text diagnostic; (3) case2 data step (semi-synthetic street-swap slice) + re-score every model; (4) Step 4 (Lin et al. 2020, word2vec + ESIM): paper review per the CLAUDE.md four-part format, then deliberation → spec table. Order of (2)–(4) is David's call.
+- **Plan (2026-10-24):** Step 4 spec decided (table in the history, 2026-10-24). **Next:** word2vec set-up (tokeniser, gensim settings — window / min_count / sg vs CBOW / epochs —, nearest-neighbour check) → case2 data step (semi-synthetic street swap; re-score every model) → ESIM build, deciding symmetry first → timing → runs. Also pending: ZIP-text diagnostic.
