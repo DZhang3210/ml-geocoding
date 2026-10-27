@@ -138,4 +138,5 @@
 - Working on address matching as the chosen narrow task (not parsing, not reverse geocoding)
 
 ## Next session plan (latest; earlier plans in the history)
+- **Start (2026-10-27):** first recall warm-up (new start-of-session checklist item 6), then continue the Step 4 plan below.
 - **Plan (2026-10-24):** Step 4 spec decided (table in the history, 2026-10-24). **Next:** word2vec set-up (tokeniser, gensim settings — window / min_count / sg vs CBOW / epochs —, nearest-neighbour check) → case2 data step (semi-synthetic street swap; re-score every model) → ESIM build, deciding symmetry first → timing → runs. Also pending: ZIP-text diagnostic.
