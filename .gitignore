@@ -7,6 +7,7 @@ __pycache__/
 geocoding_ml/Overture/Data/
 geocoding_ml/model_baseline/overture_training/
 geocoding_ml/model_baseline/stamford_training/
+geocoding_ml/model_baseline/case2s_training/
 geocoding_ml/model_baseline/libpostal_results/
 
 # OS / editor clutter
@@ -15,5 +16,6 @@ geocoding_ml/model_baseline/libpostal_results/
 
 # Step 3 model checkpoints + training histories (rebuilt by 13_real_training.ipynb)
 geocoding_ml/siamese_model/checkpoints/
+geocoding_ml/siamese_model/checkpoints_case2s/
 geocoding_ml/siamese_model/broken/
 

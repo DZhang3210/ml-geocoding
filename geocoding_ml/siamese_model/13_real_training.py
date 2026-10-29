@@ -5,6 +5,7 @@ Used by 13_real_training.ipynb (training) and 14_training_analysis.ipynb (analys
 were written by David in 13_real_training.ipynb and moved here unchanged on 2026-10-23;
 load_run / rebuild_model are the loading lines of his summary cell, wrapped as functions.
 """
+import copy
 from importlib import import_module
 
 import pandas as pd
@@ -15,7 +16,8 @@ from helpers.check_model_performance import review_typical_slices
 
 _model_step = import_module("siamese_model.08_encoder_step")          # digit-prefixed filenames -> can't use `from ... import`
 Encoder, SiameseMatcher = _model_step.Encoder, _model_step.SiameseMatcher
-predict = import_module("siamese_model.12_training_step").predict
+_train_step = import_module("siamese_model.12_training_step")
+predict, train_epoch = _train_step.predict, _train_step.train_epoch
 
 THRESHOLD = 0.5
 CASE1_GUARDRAIL = 98.0      # % rejected on val case1; an epoch below it can't be "best"
@@ -77,3 +79,35 @@ def rebuild_model(ckpt):
     model = SiameseMatcher(Encoder(len(ckpt["vocab"]), pooling=ckpt["config"]["pooling"]))
     model.load_state_dict(ckpt["state_dict"])
     return model
+
+
+def train_run(seed, pooling, vocab, train_loader, val_loader, val_df, val_labels, lr=1e-3, max_epochs=20, patience=3):
+    """One training run -> (history DataFrame, best epoch's row, best epoch's state_dict).
+
+    The loop of `run_training` in 13_real_training.ipynb with its notebook globals as arguments, so another dataset
+    (e.g. case2s, 15_train_on_case2s.ipynb) can reuse it. Same early-stopping rule (`is_better`): best epoch on val.
+    """
+    torch.manual_seed(seed)
+    model = SiameseMatcher(Encoder(len(vocab), pooling=pooling))
+    model.train()
+    opt = torch.optim.Adam(model.parameters(), lr=lr)
+    loss_fn = nn.BCEWithLogitsLoss()
+
+    best, best_state, epochs_since_best = None, None, 0
+    history = []
+    for epoch in range(max_epochs):
+        train_loss = train_epoch(model, train_loader, opt, loss_fn)
+
+        row = {"epoch": epoch, "train_loss": train_loss, **evaluate(model, val_loader, val_df, val_labels)}
+        print(row)
+        history.append(row)
+
+        if is_better(row, best):
+            best, best_state, epochs_since_best = row, copy.deepcopy(model.state_dict()), 0
+        else:
+            epochs_since_best += 1
+            if epochs_since_best >= patience:
+                break
+    if best is None:                                      # no epoch reached the case1 guardrail -> keep the last epoch's weights
+        best_state = copy.deepcopy(model.state_dict())
+    return pd.DataFrame(history), best, best_state

@@ -12,7 +12,7 @@
 | 2b — Overture real pairs | ✅ 2026-10-16 (labelled subset deferred) | CT Overture ↔ Foursquare pairs, split by ZIP, case1/case2/easy negatives, 9:1 per split; hand-labelled test subset deferred indefinitely (David: too much time) → Overture numbers = agreement with Overture's matcher; case2 can't support claims | 2026-10-06 → 2026-10-13 |
 | 2c — libpostal baseline | ✅ 2026-10-15 | Overture test non-identical found 52.3–71.9% vs 79–83% for Step 1b, but rejects 73–80% of case2 vs 7–47%; Stamford 39% | 2026-10-14, 2026-10-15 |
 | 3 — siamese network | ✅ 2026-10-23 | Char-level siamese BiLSTM, no ZIP features: Overture test non-identical found 83.6 (val 87.1) vs Step 1 79.2 / RF 83.0 — beats Step 1 by ≈ seed noise, ties RF; pooling mean = max within seed noise; `results.md` row + paragraph | 2026-10-16, 2026-10-18 → 10-23 |
-| 4 — ESIM reproduction | 🔶 | Spec decided 2026-10-24 (word2vec 200 + ESIM 200, frozen, pure first, char expansion); next: word2vec set-up, then the case2 data step | 2026-10-23 → 10-24 |
+| 4 — ESIM reproduction | 🔶 | Spec decided 2026-10-24 (word2vec 200 + ESIM 200, frozen, pure first, char expansion); **case2 data step done 2026-10-29:** `case2s` swaps (JW > 0.8, ≤ 5 per street pair) replace easy negatives in all splits (train 5,441 / val 894 / test 1,053; files `ct_pairs_*_case2s.parquet`, 1:9 kept, acceptance 0 issues, as hard as real case2 by JW); same-street spelling variants in the high JW band accepted as a known limit; **backtest + siamese retrained on `case2s` done 2026-10-29** (David: `case2s` and `case2` much higher, non-identical lower, rest about the same; one seed; numbers still to go into `results.md`); next: word2vec set-up | 2026-10-23 → 10-29 |
 
 ## Papers reviewed
 | Paper | Date reviewed | One-line takeaway |
@@ -132,11 +132,31 @@
 - Embedding / hidden size: GloVe's 300 reflects billions of words, not a rule; hidden = embedding is a convention; nearest-neighbour check to validate word2vec size (2026-10-24)
 - Soft alignment (ESIM §3.2 / Parikh "Attend"): score grid e (len_a × len_b), softmax per row/column, weighted sum of the other address's word vectors = a word's translation (d,); both directions needed (one-way misses the other side's unmatched words, breaks symmetry); softmax ≠ √d scaling. Note: `Geocoding ML NOTES/Notes/Soft alignment (ESIM, Parikh).md` (2026-10-23)
 
+**Case2 street swap (Step 4 prep, 2026-10-28)**
+- `assign` returns a new frame; assigning a Series aligns by index label, a list by position; `pd.Series(list)` is labelled `0..n-1` → NaN + shifted values after a filter; `.map` keeps the source index; `reset_index(drop=True)` after a filter when labels carry no meaning (2026-10-28)
+- Series `&` aligns on the union (missing = False), `==` on differently-labelled Series raises; `str.match` (start-anchored) vs `fullmatch`; `na=` fills NaN — `True` when the mask is the "bad" pattern that gets inverted (2026-10-28)
+- Regex: `|` has the lowest precedence → group it `(?:…)` before `\b`; `\b` = word edge; `[…]` = one-character class, not a group; `str.extract` needs a capture group; `rf"…"` strings; `str.replace` no match = unchanged, pandas default `regex=False` (2026-10-28)
+- `range` is int-only (`np.arange` / list); `DataFrame(dict of scalars)` needs `from_dict(orient="index")` or a Series (2026-10-28)
+- Jaro-Winkler ≠ edit distance: Jaro = matching characters within a window + transpositions, Winkler = prefix bonus; a shared suffix carries a lot of whole-string JW, so a count-maximising threshold must be checked against the samples in its band (2026-10-28; **warm-up probe miss** on the definition)
+- Swap-construction logic: positives are the only safe source of "known same place"; a flag column per filter (`lib_match`, `dir_disq`, `jw_similarity`) keeps dropped rows for the diagnostic, one combined filter before the place-level join; defining "streets agree" across two sources is itself the matching task (2026-10-28)
+- `groupby(cols)[col].unique()` (arrays) vs `.agg(list)`; `Series.rename("n")` sets the name (the `Name:` footer), `rename_axis` renames index levels; `join(on=[cols])` / `merge(right_index=True)` against a MultiIndex; `Series.explode` / `DataFrame.explode`; `sort_values(key=)` (2026-10-29)
+- Filtering pairs by `<= k` drops them whole, `clip(upper=k)` or shuffle + `groupby.head(k)` caps; `pd.cut` + `groupby(bins, observed=True).head(5)` for banded samples (2026-10-29)
+- A merge key without `split` silently crosses splits; acceptance checks on the written files catch what the construction logic assumed (Y from another split, Y = X, duplicate strings from several places at one address) (2026-10-29)
+- In `case0`, `id_a == id_b` by construction (one place, two sources): the X ≠ Y rule must be re-applied when pairs are rebuilt from places (2026-10-29)
+- A loop variable leaks after the `for` (`sub`) and silently feeds the next cell; only the last top-level expression displays (2026-10-29)
+- `Series.sort_values(key=)`, `groupby(...).agg(name=(col, "unique"))` for a named aggregate column, `explode(ignore_index=)` (2026-10-29)
+- Format spec `:.0%` multiplies by 100, `:.0f` + a literal `%` does not (2026-10-29)
+- Functions defined in a notebook cell are not refreshed by `%autoreload` (only imported modules): re-run the cell that defines them (2026-10-29)
+- Slice definition matters before reading a drop: `positives: non-identical` = exact string inequality, so it mixes near-matches with real rewrites; `n` per slice sets how far a point can move (case2 n=15 → 6.7 pts per row) (2026-10-29)
+- A gain on a slice built by the same process as the training negatives does not show the model learned the concept; two explanations that predict the same drop (boundary shift vs less heuristic reliance) need a check that separates them (2026-10-29)
+- Comparing two distributions with a quantile table; a floor in one (swap JW ≥ 0.8) explains only the tail, not the middle; "as hard as" ≠ "better"; volume was the gain (2026-10-29)
+
 ## Background already established
 - Software engineer, ex-Ping Data Intelligence (Ping.Maps, tile server pipelines, SQL optimization, SOV text representation for ML pretraining)
 - Strong GPT-2-level transformer/NN background coming in
 - Working on address matching as the chosen narrow task (not parsing, not reverse geocoding)
 
 ## Next session plan (latest; earlier plans in the history)
-- **Start (2026-10-27):** first recall warm-up (new start-of-session checklist item 6), then continue the Step 4 plan below.
-- **Plan (2026-10-24):** Step 4 spec decided (table in the history, 2026-10-24). **Next:** word2vec set-up (tokeniser, gensim settings — window / min_count / sg vs CBOW / epochs —, nearest-neighbour check) → case2 data step (semi-synthetic street swap; re-score every model) → ESIM build, deciding symmetry first → timing → runs. Also pending: ZIP-text diagnostic.
+- **Start (2026-10-29):** recall warm-up (skipped 10-27 → 10-29; include Jaro-Winkler vs edit distance, `assign` index alignment, regex `|` precedence, why a merge key needs `split`, `clip` vs dropping whole pairs).
+- **Superseded 2026-10-29 (cont.): the backtest and the `case2s` siamese run are done.** Next: (1) copy the backtest table into `results.md`; (2) optional: flipped non-identical positives between the two siamese models; (3) word2vec set-up (tokeniser, gensim settings, nearest-neighbour check); (4) ESIM build, deciding symmetry first. Also pending: ZIP-text diagnostic.
+- ~~Earlier plan (kept for the record):~~ Case2 data step is closed. Next, in order: (1) ~~dataset name~~ done 2026-10-29: `load_pairs("overture_case2s", split)`; (2) **run `model_baseline/07_backtest_case2s.ipynb`** (built 2026-10-29, smoke-tested only; first run builds features + libpostal predictions, slow), read the table, and add the `case2s` rows to `results.md`; retrain the siamese on `case2s` with `siamese_model/15_train_on_case2s.ipynb` (set up 2026-10-29, not run; ≈ 80 min worst case), then re-run §5b of the backtest; (3) word2vec set-up (tokeniser, gensim settings, nearest-neighbour check); (4) ESIM build, deciding symmetry first. Also pending: ZIP-text diagnostic.

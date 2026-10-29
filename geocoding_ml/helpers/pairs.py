@@ -13,15 +13,26 @@ OVERTURE_RELEASE = "2026-09-23.1"
 def _path(dataset, split, release):
     if dataset == "overture":
         return os.path.join(_ROOT, "Overture", "Data", f"ct_pairs_{split}_{release}.parquet")
+    if dataset == "overture_case2s":   # Overture pairs with look-alike street swaps replacing easy negatives (Overture/03_case2_street_swap.ipynb)
+        return os.path.join(_ROOT, "Overture", "Data", f"ct_pairs_{split}_case2s.parquet")
     if dataset == "stamford":
         return os.path.join(_ROOT, "Stamford", "Data", f"stamford_pairs_{split}.parquet")
-    raise ValueError(f"Unknown dataset {dataset!r}: use 'overture' or 'stamford'")
+    raise ValueError(f"Unknown dataset {dataset!r}: use 'overture', 'overture_case2s' or 'stamford'")
 
 
 # One split -> (pairs without label, label). Works from any notebook folder.
 def load_pairs(dataset, split, release=OVERTURE_RELEASE):
     df = pd.read_parquet(_path(dataset, split, release))
     return df.drop(columns=["label"]), df["label"]
+
+
+# All three splits in one frame, label column re-attached (what the Overture swap notebooks start from).
+def load_all_pairs(dataset, release=OVERTURE_RELEASE):
+    frames = []
+    for split in ["train", "val", "test"]:
+        df, label = load_pairs(dataset, split, release)
+        frames.append(df.assign(label=label))
+    return pd.concat(frames, ignore_index=True)
 
 
 # Split each address into house number + street remainder, for the similarity features.

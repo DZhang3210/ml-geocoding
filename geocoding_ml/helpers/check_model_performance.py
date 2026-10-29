@@ -54,6 +54,8 @@ def _typical_masks(df, labels):
         masks["neg: case1 (same street, diff number)"] = (df["neg_type"] == "case1").values
         masks["neg: case2 (same number, similar street)"] = (df["neg_type"] == "case2").values
         masks["neg: case3 (easy)"] = (df["neg_type"] == "case3").values
+        if (df["neg_type"] == "case2s").any():   # only the case2s dataset has this slice (street swaps)
+            masks["neg: case2s (swapped look-alike street)"] = (df["neg_type"] == "case2s").values
     # Mixed-label row = plain accuracy; dominated by easy rows, don't quote it alone
     masks["overall (accuracy)"] = np.ones(len(df), dtype=bool)
     return masks
