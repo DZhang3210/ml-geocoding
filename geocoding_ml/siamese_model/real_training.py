@@ -6,7 +6,6 @@ were written by David in 13_real_training.ipynb and moved here unchanged on 2026
 load_run / rebuild_model are the loading lines of his summary cell, wrapped as functions.
 """
 import copy
-from importlib import import_module
 
 import pandas as pd
 import torch
@@ -14,9 +13,9 @@ from torch import nn
 
 from helpers.check_model_performance import review_typical_slices
 
-_model_step = import_module("siamese_model.08_encoder_step")          # digit-prefixed filenames -> can't use `from ... import`
+import siamese_model.encoder_step as _model_step
 Encoder, SiameseMatcher = _model_step.Encoder, _model_step.SiameseMatcher
-_train_step = import_module("siamese_model.12_training_step")
+import siamese_model.training_step as _train_step
 predict, train_epoch = _train_step.predict, _train_step.train_epoch
 
 THRESHOLD = 0.5

@@ -4,12 +4,11 @@ Stages were built and tested one notebook each (05 char embedding, 06 BiLSTM,
 07 masked pooling); those notebooks now import their class from here, so the
 tests run on exactly the code that gets trained.
 """
-from importlib import import_module
 
 import torch
 from torch import nn
 
-PAD_ID = import_module("siamese_model.01_vocab_step").PAD_ID   # digit-prefixed filename -> can't use `from ... import`
+from siamese_model.vocab_step import PAD_ID
 
 
 class CharEmbedder(nn.Module):

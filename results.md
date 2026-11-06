@@ -36,7 +36,24 @@ Overall accuracy is left out because easy negatives dominate it. Data: shared pa
 | libpostal, loose/off/loose | 2c | 100.0 (100.0) | **39.0** (36.0) | 100.0 (98.8) | 92.8 (93.8) | 99.3 (100.0) |
 | *test n (pairs in the slice)* | | *17* | *59* | *174* | *69* | *445* |
 
+## Overture `case2s` (look-alike street swaps replace some easy negatives) — test (val in brackets)
+
+Same positives, case1 and case2 as the Overture table above. The difference is that 1,053 test easy negatives (val 894, train 5,441) are replaced by **case2s** pairs. A case2s pair is a real address with its street swapped for a different real street in the same ZIP that looks alike (Jaro-Winkler > 0.8). Every learned model except the first siamese row is **retrained on the `case2s` train split**. libpostal has no training. Source: `model_baseline/07_backtest_case2s.ipynb` §6.
+
+| Model | Step | Identical matches — **% found** | **Non-identical matches — % found** | Case1 non-matches — **% rejected** | Case2 non-matches — **% rejected** | **Case2s non-matches — % rejected** | Easy non-matches — **% rejected** |
+|---|---|---|---|---|---|---|---|
+| LogReg (3 Jaro-Winkler features) | 1 | 99.9 (100.0) | **59.2** (62.4) | 99.7 (99.5) | 80.0 (61.8) | **59.6** (63.4) | 100.0 (100.0) |
+| LogReg (23 similarity features) | 1b | 99.9 (100.0) | **50.5** (57.1) | 99.1 (99.2) | 66.7 (47.1) | **74.4** (77.0) | 100.0 (100.0) |
+| Random forest | 1b | 100.0 (100.0) | **70.1** (76.8) | 99.6 (99.5) | 53.3 (55.9) | **88.7** (91.3) | 99.9 (99.9) |
+| XGBoost | 1b | 100.0 (100.0) | **69.9** (76.3) | 99.6 (99.5) | 53.3 (52.9) | **88.5** (90.2) | 100.0 (100.0) |
+| libpostal, strict/strict/strict | 2c | 99.1 (99.0) | **52.3** (56.5) | 100.0 (100.0) | 80.0 (88.2) | **97.4** (98.2) | 100.0 (100.0) |
+| libpostal, loose/off/loose | 2c | 100.0 (100.0) | **71.9** (75.7) | 97.9 (98.3) | 73.3 (50.0) | **75.1** (74.9) | 98.9 (99.4) |
+| Siamese BiLSTM, trained on the **old** train (= Step 3 row) | 3 | 100.0 (100.0) | **83.6** (87.1) | 99.4 (99.4) | 33.3 (29.4) | **22.2** (24.8) | 99.9 (99.9) |
+| Siamese BiLSTM, trained on `case2s` (mean pooling, seed 0) | 3 | 100.0 (100.0) | **80.1** (83.1) | 99.3 (99.3) | 53.3 (64.7) | **75.7** (74.5) | 100.0 (100.0) |
+| *test n (pairs in the slice)* | | *3,543* | *843* | *14,448* | *15* | *1,053* | *23,942* |
+
 **Setup.**
+- **`case2s` backtest (2026-10-29):** the Step 1 / 1b models use the same features and default settings as before, refitted on the `case2s` train split. libpostal uses the same two settings, re-run because val/test now hold different pairs. The rows on the positive, case1 and case2 slices are the same pairs as before, which is why the libpostal numbers there are unchanged. The `case2s`-trained siamese model uses the Step 3 protocol unchanged (same architecture, guardrail and best-epoch rule; `siamese_model/15_train_on_case2s.ipynb`), with one seed only. Case2s has known noise: some same-street spelling variants are labelled as non-matches (open questions).
 - **Step 1:** the same default LogReg as Step 1b, on only the three Jaro-Winkler features (street, house number, ZIP), so Step 1 vs 1b differs only in the features. The old Step 1 number (F1 0.81, 2026-09-21) used the pre-schema Stamford columns and isn't comparable.
 - **Step 1b:** default hyperparameters, no class weighting, trained on the train split. This is Step 1b's single test run (2026-10-15).
 - **Step 3 (2026-10-23):** character-level siamese bi-encoder: one shared encoder (char embedding 32 → BiLSTM 1 × 128 → masked mean pooling) applied to both strings, head `[|u−v|; u⊙v]` → one logit, `BCEWithLogitsLoss`, Adam 1e-3, threshold 0.5. Input = the two address strings only: **no ZIP features and no hand-built similarity features**. Trained on Overture train only (Stamford was dropped from Step 3, so there is no Stamford row). Best epoch = highest val non-identical found with val case1 ≥ 98%. Mean vs max pooling × 3 seeds tied within seed noise on val; mean / seed 0 went to test (seed 0 was the default before any run, not picked on val). Single test run 2026-10-23, `siamese_model/14_training_analysis.ipynb` §4.

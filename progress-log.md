@@ -12,7 +12,7 @@
 | 2b — Overture real pairs | ✅ 2026-10-16 (labelled subset deferred) | CT Overture ↔ Foursquare pairs, split by ZIP, case1/case2/easy negatives, 9:1 per split; hand-labelled test subset deferred indefinitely (David: too much time) → Overture numbers = agreement with Overture's matcher; case2 can't support claims | 2026-10-06 → 2026-10-13 |
 | 2c — libpostal baseline | ✅ 2026-10-15 | Overture test non-identical found 52.3–71.9% vs 79–83% for Step 1b, but rejects 73–80% of case2 vs 7–47%; Stamford 39% | 2026-10-14, 2026-10-15 |
 | 3 — siamese network | ✅ 2026-10-23 | Char-level siamese BiLSTM, no ZIP features: Overture test non-identical found 83.6 (val 87.1) vs Step 1 79.2 / RF 83.0 — beats Step 1 by ≈ seed noise, ties RF; pooling mean = max within seed noise; `results.md` row + paragraph | 2026-10-16, 2026-10-18 → 10-23 |
-| 4 — ESIM reproduction | 🔶 | Spec decided 2026-10-24 (word2vec 200 + ESIM 200, frozen, pure first, char expansion); **case2 data step done 2026-10-29:** `case2s` swaps (JW > 0.8, ≤ 5 per street pair) replace easy negatives in all splits (train 5,441 / val 894 / test 1,053; files `ct_pairs_*_case2s.parquet`, 1:9 kept, acceptance 0 issues, as hard as real case2 by JW); same-street spelling variants in the high JW band accepted as a known limit; **backtest + siamese retrained on `case2s` done 2026-10-29** (David: `case2s` and `case2` much higher, non-identical lower, rest about the same; one seed; numbers still to go into `results.md`); next: word2vec set-up | 2026-10-23 → 10-29 |
+| 4 — ESIM reproduction | 🔶 | Spec decided 2026-10-24 (word2vec 200 + ESIM 200, frozen, pure first, char expansion); **case2 data step done 2026-10-29:** `case2s` swaps (JW > 0.8, ≤ 5 per street pair) replace easy negatives in all splits (train 5,441 / val 894 / test 1,053; files `ct_pairs_*_case2s.parquet`, 1:9 kept, acceptance 0 issues, as hard as real case2 by JW); same-street spelling variants in the high JW band accepted as a known limit; **backtest + siamese retrained on `case2s` done 2026-10-29** (David: `case2s` and `case2` much higher, non-identical lower, rest about the same; one seed; numbers in `results.md` 2026-10-30); **word2vec set-up started 2026-10-30:** settings decided (`overture_case2s`, skip-gram, `window=2`, `min_count=2`, epochs 5/20/50 picked by val AUC non-identical vs `case2s`); Cell A helpers (tokenise, address vector, pair cosines, AUC) done; **word2vec done:** 50 epochs chosen (val case2s AUC 0.62, differences within noise), saved as `esim/word2vec_50.model`; **ESIM build started 2026-11-02** (`esim/02_esim.ipynb`, spec in its header: symmetry = original `[v_a; v_b]` + swap test later, MLP 200, dropout 0.3): sections 2–4 done (load, vocab + `EmbeddingLayer` with frozen table and trainable `UNK`, `encode_batch`); `tokenize` shared via `esim/tokenizer.py`; **sections 5–12 done 2026-11-04** (loaders, context BiLSTM, `attention_weights` / `align`, `enhance`, composition, mean + max pooling, tanh head, `ESIM`; mask invariance + overfit tests pass; embedding checks written by Claude, not yet run); 3.1 min/epoch → 3 seeds trained (section 13); **first results 2026-11-05:** all 3 seeds scored on test before choosing → reported as a range (test case2s 73.9–75.5, identical 95.5–100); finding: rare house numbers collapse to one `UNK`, so same-street case1 pairs = identical pairs as input (D1–D4); `min_count=1` word2vec (pre-check: collision survives softly, cos 0.92) → ESIM retrained behind a `W2V_MIN_COUNT` switch (`esim_mc1/`); fastText (same settings + char 3–6-grams; collision check group 0.79 vs random 0.68) → ESIM retrained into `esim_ft_mc1/` via a temporary queue cell; both retrains done, not yet compared | 2026-10-23 → 11-05 |
 
 ## Papers reviewed
 | Paper | Date reviewed | One-line takeaway |
@@ -151,12 +151,60 @@
 - A gain on a slice built by the same process as the training negatives does not show the model learned the concept; two explanations that predict the same drop (boundary shift vs less heuristic reliance) need a check that separates them (2026-10-29)
 - Comparing two distributions with a quantile table; a floor in one (swap JW ≥ 0.8) explains only the tail, not the middle; "as hard as" ≠ "better"; volume was the gain (2026-10-29)
 
+**word2vec set-up (Step 4, 2026-10-30)**
+- Tokeniser `re.findall(r"[A-Za-z]+|\d+", s.upper())` returns a list of strings: splits letters from digits (`12A` → `12`, `A`), drops punctuation, uppercases; `.split()` keeps `ST.` / `#4` / `12A` glued
+- `model.wv` is a word → 200-d lookup table: `wv[words]` takes strings and maps to indices internally; `wv.key_to_index` is only for the "known?" filter (`min_count` leaves rare words out, and `wv[...]` raises on an unknown one)
+- Address vector = mean of the known tokens' vectors (`mean(axis=0)` over tokens); unknown tokens are dropped, so `"293 ZZZQ AVE"` = `"293 AVE"`; no known token → zeros, else NaNs flow into every cosine
+- Shapes in `pair_cosines`: `va, vb` are `(n, 200)`; `(va*vb).sum(axis=1)` collapses the 200 dims (dot product per pair) → `(n,)`, one cosine per pair; `axis=0` was for tokens inside one address
+- A tiny epsilon in a denominator guards zero vectors, but a wrong sign (`1e9`) silently crushes all scores — no error, AUC ≈ 0.5
+- AUC = P(random positive scores above random negative): threshold-free, picks no threshold, no validation set inside; needs both classes (`ValueError` otherwise); constant scores give 0.5
+- `window` = words per side (gensim shrinks it randomly per word); on 3–4-token addresses any window ≥ 3 = whole address (2026-10-30, 2nd session)
+- Skip-gram (centre → each neighbour) vs CBOW (averaged context → centre); neither uses word order; skip-gram suits rare words / small corpora (2026-10-30)
+- `min_count` drops a word from word2vec entirely (no vector, out of neighbours' contexts); default 5 epochs assumes billions of words (2026-10-30)
+- A corpus built from pair rows counts each address once per pair it appears in → deduplicate on `(id, address)` (both sides of `case0` share an id) (2026-10-30)
+- word2vec lookups use cosine; analogy test = top-1 of `b − a + c`, no threshold; antonyms come out similar (shared contexts) (2026-10-30)
+- Intrinsic (similarity / analogy probes) vs extrinsic (score the task) evaluation; frozen embeddings make the cheap extrinsic check exact (2026-10-30)
+- Leakage = labels reaching a choice: word2vec on all splits' text is not leakage, picking a setting on test labels is; "val" = the val split, never a random sample of all pairs; word2vec and ESIM are two separate trainings (2026-10-30)
+- A pooled AUC over all negatives is dominated by the largest slice → score slices separately (2026-10-30)
+
+**ESIM build: input side (Step 4, 2026-11-02)**
+- `encode_batch` = tokenizer (strings → padded ids + lengths, plain Python, before the model) vs embedding layer (ids → vectors, part of the model); collate calls `encode_batch` once per side
+- Notebook order = definition order (section 4 needs section 3's `vocab`), not the order data flows at run time
+- gensim gives `key_to_index` and `vectors` only: no `UNK` (unknown key raises), no padding, no batched tensors, no trainable rows
+- `UNK` keeps an unknown word's position; dropping it (the averaging baseline) shifts positions and hides that a word was there
+- Matrix = 2 zero rows (`PAD` 0, `UNK` 1) + word2vec rows, vocab id = word2vec index + 2; a mismatch fails silently → alignment assert in section 12
+- Mixed frozen/trainable rows: `nn.Embedding.from_pretrained(..., freeze=True)` + a separate `nn.Parameter` swapped in with `torch.where`; without the swap `UNK` = frozen zero row = `PAD`, never trained
+- Broadcasting aligns shapes from the right and stretches size-1 axes (all elementwise ops, not just `torch.where`); `unsqueeze(-1)` turns the (B, L) mask into (B, L, 1)
+- `torch.where(cond, x, y)` picks per cell from two symmetric sources and returns a new tensor (no overwrite); embedding ids must be `LongTensor`
+- Zero `PAD` vectors don't remove padding, the later masks do; a length-0 sequence crashes packing and gives NaN in softmax / masked mean
+
+**ESIM build: model side (Step 4, 2026-11-03 → 11-04)**
+- BiLSTM output = 2 · hidden; "hidden" = the per-direction hidden state `h_t` (short-term memory; `c_t` = long-term), written out at every word
+- Dropout has no weights → only `p`; `nn.LSTM(dropout=)` acts only between stacked layers (no-op at 1 layer); sizes are needed only to create weights (`nn.LazyLinear` infers input size; output size = design choice)
+- `A @ B.transpose(1, 2)` = one `(m_a, m_b)` score grid per pair, whole batch at once (no row loop)
+- Mask the axis the softmax runs over (B's PAD columns → −inf); A's PAD rows stay (all −inf → NaN), discarded by packing / pooling later
+- `mask[:, None, :]`: name the axes, size 1 = "same for every …"; batch axis = a for-loop; front insertion misaligns batch with `m_a`
+- `softmax(dim)` normalises every 1-D slice along `dim`; the axis check sums over B
+- Pad + mask and broadcasting come from array programming (rectangular tensors, NumPy rules), not PyTorch specifically
+- `⊙` = elementwise; `torch.long` = int64 (truncates floats); `torch.tensor(t)` copies and detaches from the graph; `requires_grad` = connected to a trainable weight
+- `iter(loader)` is fresh each call; with `shuffle=True` it advances the global RNG (seed after check cells)
+- Projection 1600 → 200: ≈ 3× fewer parameters (overfitting, not underfitting), per word; needs a nonlinearity or two linear maps collapse
+- A single `Linear` over `[v_a; v_b]` = separate votes per side, can't express agreement (XOR); a hidden layer + nonlinearity builds interaction detectors
+- Mean + max pooling: max keeps a single-word mismatch, mean dilutes it
+- Invariance test (model vs itself, garbage past `lengths`, `eval()`, `allclose`) checks wiring that per-layer tests can't; overfit test = can the model learn at all; word-level `UNK` can make two inputs identical
+
+**ESIM results + rare house numbers (Step 4, 2026-11-05)**
+- All seeds scored on test before choosing → report the range, choose nothing; val drives decisions, test only confirms a val finding
+- `eval()` model = fixed function: identical inputs with opposite labels force one default per input; seeds differ only in which default
+- A miss pattern needs both readings: share of misses in a group *and* the error rate inside vs outside the group
+- word2vec places words by neighbours → numbers on the same street get similar vectors (case1 pairs cos ≈ 0.92); numeric difference doesn't predict similarity
+- fastText = word vector built from char 3–6-gram vectors: no `UNK`, typos close to the word, shared n-grams keep `4817`/`4819` similar
+
 ## Background already established
 - Software engineer, ex-Ping Data Intelligence (Ping.Maps, tile server pipelines, SQL optimization, SOV text representation for ML pretraining)
 - Strong GPT-2-level transformer/NN background coming in
 - Working on address matching as the chosen narrow task (not parsing, not reverse geocoding)
 
 ## Next session plan (latest; earlier plans in the history)
-- **Start (2026-10-29):** recall warm-up (skipped 10-27 → 10-29; include Jaro-Winkler vs edit distance, `assign` index alignment, regex `|` precedence, why a merge key needs `split`, `clip` vs dropping whole pairs).
-- **Superseded 2026-10-29 (cont.): the backtest and the `case2s` siamese run are done.** Next: (1) copy the backtest table into `results.md`; (2) optional: flipped non-identical positives between the two siamese models; (3) word2vec set-up (tokeniser, gensim settings, nearest-neighbour check); (4) ESIM build, deciding symmetry first. Also pending: ZIP-text diagnostic.
-- ~~Earlier plan (kept for the record):~~ Case2 data step is closed. Next, in order: (1) ~~dataset name~~ done 2026-10-29: `load_pairs("overture_case2s", split)`; (2) **run `model_baseline/07_backtest_case2s.ipynb`** (built 2026-10-29, smoke-tested only; first run builds features + libpostal predictions, slow), read the table, and add the `case2s` rows to `results.md`; retrain the siamese on `case2s` with `siamese_model/15_train_on_case2s.ipynb` (set up 2026-10-29, not run; ≈ 80 min worst case), then re-run §5b of the backtest; (3) word2vec set-up (tokeniser, gensim settings, nearest-neighbour check); (4) ESIM build, deciding symmetry first. Also pending: ZIP-text diagnostic.
+- **Start:** recall warm-up (unless David skips) — new questions only; check `logs/warm-up-log.md`.
+- Then: (1) check `problems:` for both retrains (`esim/checkpoints/esim_mc1/`, `esim_ft_mc1/`); (2) Claude folds fastText into the Setup switch, deletes the temporary queue cell, adds `esim_ft_mc1` to 14d; (3) `W2V_MIN_COUNT = 2` + Restart & Run All to save the old predictions; (4) compare all three settings in 14d and D2–D4 (same `UNK` group) — did the identical/case1 trade-off shrink?; (5) fill the result + interpretation markdown of both collision checks in `01_word2vec.ipynb`; (6) choose the number fix on val; (7) `results.md` ESIM row (test min–max, no run picked); (8) centralised results view (design not decided). Still pending: swap test, `EMB_DIM` cleanups, `encode_batch` renames (`tokens`, `word`), `case2s` interpretation paragraph, older diagnostics.

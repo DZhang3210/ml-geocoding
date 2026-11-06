@@ -495,3 +495,185 @@ Warm-up: skipped (David went straight to the notebook). David ran everything; Cl
 | Copy the backtest table (with the `case2s` siamese row) into `results.md`, plus a paragraph | `results.md` | a `case2s` section exists with `test (val)` per model and the caveats above (n=15 case2, one seed) |
 | Look at the non-identical positives that flipped between the two siamese models | `07_backtest_case2s.ipynb` Diagnostics | the result line states near-misses vs random rows |
 | word2vec set-up (tokeniser, gensim settings, nearest-neighbour check) | Step 4 | settings written as a spec table |
+
+
+## 2026-10-30 — Step 4: word2vec set-up, Cell A (helper functions) done
+
+Warm-up: skipped (David went straight to the notebook). Notebook: `geocoding_ml/esim/01_word2vec.ipynb` §2 "choose the epoch count" (spec 2026-10-30: skip-gram, 200-d, `window=2`, `min_count=2`, `seed=0`, `workers=1`; score 5 / 20 / 50 epochs on val by AUC of non-identical positives vs `case2s`, AUC vs `case3` as sanity check, test untouched). Puzzle format: David places numbered pieces, Claude checks. David wrote and understood Cell A; Cell B (corpus, val slices, epoch loop) not started.
+
+- **Cell A, final state (all four functions reviewed correct):** `tokenize` (`re.findall(r"[A-Za-z]+|\d+", s.upper())` → list of strings), `address_vector` (drop unknown tokens, zeros if none known, else mean of word vectors over axis 0), `pair_cosines` (stack to `(n, 200)` ×2, row-wise cosine, `+ 1e-9`), `auc` (labels 1/0 concatenated in the same order as the scores).
+- **David's questions, answered:** tokenize returns a list, not a Series, and regex-extracts rather than splitting on spaces; `model` is the word2vec model (not ESIM); unknown tokens are filtered before lookup so the mean is over known tokens only; `sum(axis=1)` collapses the 200 dims, not the pairs, giving one cosine per pair `(n,)`; AUC = P(random positive scores above random negative), threshold-free, not a threshold search and no validation set inside; needs both classes (one class → `ValueError`), constant scores give 0.5.
+- **Misconceptions corrected:** (1) AUC "finds the best threshold" — it ranks across all thresholds, picks none; (2) `.split()` vs the regex — punctuation stays attached and `12A` stays one token with split.
+- **Incidental bugs (Claude pointed out, David fixed; logged):** attribute typos (`vw_key_to_index`, then `wv_key_to_index`), `np.stack` given a generator, `1e9` for `1e-9`, `np.zeroes`.
+
+| Result | Status |
+|---|---|
+| Cell A functions | Done, reviewed correct |
+| Epoch choice (5 / 20 / 50) | Not run — Cell B pending |
+
+| Next action | Where | Done when |
+|---|---|---|
+| Place the 9 pieces of Cell B and run it | `01_word2vec.ipynb` | the 3-row table (case2s, case3 AUC per epoch count) is printed; David states which epoch count wins and why |
+| Nearest-neighbour check on the chosen model | same notebook, Diagnostics | a result line says whether `CIRCULAR`, `AVE`, number tokens have sensible neighbours |
+| Write the word2vec settings as a spec table | roadmap / progress log | epochs chosen, rest fixed, ready for the ESIM build |
+
+
+## 2026-10-30 (second session) — warm-up, `case2s` numbers into `results.md`, word2vec deliberation
+
+A separate session from the "Cell A" entry above; both ran on 2026-10-30. This one ran the warm-up, wrote the backtest into `results.md`, and decided the word2vec settings that the Cell A entry's spec quotes.
+
+Warm-up: Jaro-Winkler vs edit distance ✗ (second miss: David described a length effect; repair: Jaro = matching characters within a window + transpositions, Winkler = prefix bonus up to 4 characters, and a shared suffix like ` ST` lifts whole-string JW), `assign` + `pd.Series(list)` alignment ✓ (sharpened: labels 0..n−1 vs 3/7/12 → all NaN), regex `|` precedence ✓, merge key without `split` ✓, `clip` vs `<= k` ✓.
+
+- **`results.md`:** Claude copied the `07_backtest_case2s.ipynb` §6 table into a new **Overture `case2s`** section (8 rows, `test (val)`, new case2s column, setup note). No interpretation paragraph: that is David's. Progress log and open question updated to say the numbers are in.
+- **Set-up (Claude):** `geocoding_ml/esim/01_word2vec.ipynb` created (setup cell, load cell, Diagnostics); `gensim==4.4.0` installed in `venv` (numpy stays 2.0.2) and added to `requirements.txt`. Later: the §2 spec markdown and the Cell A / Cell B puzzle cells (slots + shuffled banks), pieces toy-tested first; `roc_auc_score` import added to setup.
+- **Word counts (David):** first count on pair rows → only 1 word with count 1 out of 6,665. Claude: each address is counted once per pair it sits in (the same string is reused, unchanged, in its positive, case1, easy and swap pairs; identical positives count it twice). Dedup on `id` alone then dropped one side of every positive (`case0` has `id_a == id_b`) → fixed to `drop_duplicates(subset=["id", "address"])`. After dedup the bands were 1: 2,532 · 2–4: 1,667 · 5–9: 866 · ≥10: 1,191 (before the id+address fix; not re-recorded after it). Also caught: a displayed sample left over from an earlier run (labels didn't match the filter), no `random_state` on the sample, `str.match(r"[\d-]+")` drops `1ST` / `2ND`.
+- **David's reading of the bands:** few clear misspellings; mostly rare real names; some joined words (`WATERBURYTURNPIKE`). Claude: `KELSEYTOWN` and `FLOYDVILLE` are real one-word CT road names; `BOULVEVARD` was a typo in the first sample.
+
+**word2vec decisions (David, 2026-10-30):**
+
+| Setting | Decision | Reason |
+|---|---|---|
+| Dataset | `overture_case2s` | ESIM will train/validate on it → the Step 4 row compares against the `case2s` rows in `results.md`, incl. the `case2s`-trained siamese |
+| Corpus | all splits, both sides, dedup on `(id, address)`, no labels | pair rows inflate counts and training weight |
+| Algorithm | skip-gram (`sg=1`) | vocabulary is mostly rare street / town names; skip-gram gives a rare word the full update every occurrence, CBOW averages it into the context |
+| `min_count` | 2 | a word seen in one address gets a near-noise vector; a frozen random vector still matches itself, and singletons barely affect other words |
+| `window` | 2 | addresses are ~3–4 tokens; David prefers short-range context; mainly keeps `RD` and the house number out of each other's context |
+| Epochs | 5 / 20 / 50, picked on val | default 5 assumes a huge corpus |
+| Deciding check | val: mean word vector per address → cosine per pair → **AUC non-identical positives vs `case2s`** (highest wins); AUC vs `case3` printed as sanity (≈ 1.0) | extrinsic check of exactly the frozen vectors ESIM will use; all-negatives AUC would be ~97% easy + case1 rows and barely move; case1 left out because averaged vectors can't separate `123` / `124` at any epoch count (not because case1 doesn't matter) |
+| Dropped | analogy file (USPS suffix pairs + `evaluate_word_analogies`), nearest-neighbour eyeball optional | David chose the simple version |
+| Test | not used for word2vec | test labels only reach ESIM's final run |
+
+- **Concepts explained:** `window` counts words per side and gensim shrinks it randomly per word; skip-gram (centre → each neighbour) vs CBOW (averaged context → centre), neither uses order; `min_count` drops a word from word2vec entirely; why few epochs underfit rare words in a small corpus; word2vec lookups use cosine (training uses dot products); analogy evaluation is rank-based (top-1 = `b − a + c`), no threshold; antonyms end up similar (shared contexts); intrinsic vs extrinsic evaluation; leakage = labels reaching a choice, so word2vec reading val/test text is not leakage but choosing epochs on test labels would be; "val" = the val split, not a random sample of all pairs; two separate trainings (word2vec on all text vs ESIM on the train split); a pooled AUC is dominated by its largest negative slice.
+- **David's confusions, resolved:** "cut off at one" (= `min_count=2`, confirmed); val as "something more general / a random sample" → the val split; ESIM and word2vec mixed in one answer → separated.
+
+| Result | Status |
+|---|---|
+| `case2s` backtest in `results.md` | Done (Claude transcribed); interpretation paragraph not written |
+| word2vec settings | Decided except epochs (chosen by Cell B) |
+
+| Next action | Where | Done when |
+|---|---|---|
+| Write the `case2s` interpretation paragraph | `results.md`, new `## Step 4 prep — case2s backtest` | David's reading with the n=15 / one-seed caveats |
+| Re-record the frequency bands after the `(id, address)` dedup fix | `01_word2vec.ipynb` Diagnostics | question → result → query line with the four band counts |
+
+
+## 2026-11-01 — data-wrangling notes write-up (David), warm-up skipped
+
+Warm-up: skipped (David). The questions prepared but not asked: Jaro-Winkler (`OAK ST` vs `ELM ST`: why high, which part doesn't help), AUC 0.5 alongside 90% accuracy, `axis=0` vs `axis=1` in `address_vector`, skip-gram vs CBOW for a word seen in 3 addresses, why the corpus is deduplicated. Carry them to the next warm-up.
+
+- **David:** wrote up his own notes on all the data wrangling done to build the datasets (Stamford, Overture pairs, `case2s`). This was the session's work.
+- **No Step 4 progress:** Cell B in `esim/01_word2vec.ipynb` is still unfilled; epoch choice still pending.
+
+| Next action | Where | Done when |
+|---|---|---|
+| Place the 9 pieces of Cell B and run it | `esim/01_word2vec.ipynb` | the 3-row table (case2s, case3 AUC per epoch count) is printed; David states which epoch count wins and why |
+
+## 2026-11-02 — Step 4 ESIM build: sections 2–4 (word2vec load, vocab + embedding layer, `encode_batch`)
+
+Warm-up: not run (Claude skipped the start-of-session checklist; carry the 2026-11-01 questions forward).
+
+**Done between 2026-11-01 and this session (read from the notebooks, not discussed here):** Cell B in `esim/01_word2vec.ipynb` run (val AUC case2s / case3: 5 ep 0.600 / 0.908, 20 ep 0.587 / 0.942, 50 ep 0.620 / 0.966); David chose 50 epochs (case2s differences within noise, 50 highest) and saved the model as `esim/word2vec_50.model`; David's results paragraph written. `esim/02_esim.ipynb` created with the spec dated 2026-11-02: frozen word2vec 200-d with learned `UNK` and masked `PAD` → BiLSTM 200 → soft alignment both ways (PAD → −∞) → `[a; ã; a−ã; a⊙ã]` → composition BiLSTM 200 → masked mean + max → `[v_a; v_b]` → MLP 200, dropout 0.3; Step 3 protocol; symmetry = original `[v_a; v_b]`, swap test later; build plan = all layers, one shape pass, then tests (PAD mask, softmax axis, tiny-set overfit).
+
+**This session (David coded, Claude reviewed):**
+- **Section 2:** `w2v = Word2Vec.load("word2vec_50.model")`, assert 200-d; prints 50 epochs, 4,282 words.
+- **Section 3:** `PAD_ID, UNK_ID = 0, 1` in Setup; `vocab` = word2vec's `key_to_index` shifted by 2 (+ `"PAD"`/`"UNK"` keys for readability); `EmbeddingLayer`: matrix = 2 zero rows on top of `w2v.wv.vectors`, `nn.Embedding.from_pretrained(matrix, freeze=True)`, trainable `self.unk = nn.Parameter(zeros(200))`, forward = lookup → `torch.where(ids == UNK_ID (unsqueezed), self.unk, out)`. Option B (one trainable table + gradient hook zeroing all rows but `UNK`) considered, not taken (frozen-by-hook is fragile).
+- **Section 4:** `encode_batch(strings, vocab, max_len)`: tokenise, `vocab.get(t, UNK_ID)`, pad with `PAD_ID` to the batch's longest, return `ids`, `lengths` as `LongTensor`s. Same shape as Step 3's version, at word level.
+- **`tokenize` moved** (Claude, reorg) to `geocoding_ml/esim/tokenizer.py`; both `01_word2vec.ipynb` and `02_esim.ipynb` import it in Setup (`from esim.tokenizer import tokenize`), so ESIM tokenises exactly as word2vec was trained. `CLAUDE.md` folder list gained an `esim/` line.
+- **Empty addresses:** a length-0 address would crash `pack_padded_sequence` and give NaN in the attention softmax and the masked mean. David checked: no address in any split tokenises to `[]`, so not handled (scope is fixed). Query result still to be written into Diagnostics.
+- **Embedding checks deferred** to section 12, per the notebook's build plan (David's correction): vocab ↔ matrix row alignment (silent if wrong), `PAD` → exact zeros, `UNK` → `self.unk`, after a step the word rows unchanged and `self.unk` moved.
+- **Incidental bugs** (Claude fixed, two rows in the debugging log): section 3 — missing `.wv`, dict iterated without `.items()`, `nn.Embeddings`, `self.unk ==`; section 4 — `vocab.get(string, …)` on the whole list, padding `ret` not `res` and no `append`, `ret` returned instead of `lengths`, global instead of `max_len`.
+
+- **Concepts explained:** `encode_batch` (tokenizer: strings → ids, plain Python, before the model) vs the embedding layer (ids → vectors, part of the model); collate calls `encode_batch` once per side; notebook order = definition order, not run order; what gensim gives (`key_to_index`, `vectors`) and doesn't (`UNK`, padding, batched tensors, trainable rows); `UNK` keeps the word's position, dropping it (baseline) shifts positions and hides that a word was there; matrix row `i + 2` ↔ vocab id `i + 2`, a mismatch fails silently; frozen table + separate `nn.Parameter` for mixed frozen/trainable rows; without `torch.where`, `UNK` = frozen zero row = `PAD`, never trained; broadcasting (align from the right, size-1 axes stretch; a property of all elementwise ops, not `torch.where`); why `unsqueeze(-1)`; `torch.where` picks per cell from two symmetric sources and returns a new tensor; ids must be `LongTensor`; zero vectors don't remove padding, masks do; a length-0 sequence breaks packing, softmax and masked mean.
+- **David's confusions, resolved:** thought gensim already did ids + embeddings end to end → it gives the table and vectors only; asked whether the embedding layer receives strings or a DataFrame → `LongTensor` ids; thought `encode_batch` was an extension of the embedding layer → separate pre-model step; read `torch.where` as overwriting `out` → per-cell choice, new tensor.
+
+| Next action | Where | Done when |
+|---|---|---|
+| Re-run Setup in both notebooks (new `tokenize` import) | `01_word2vec.ipynb`, `02_esim.ipynb` | Setup runs; `tokenize` resolves from `esim/tokenizer.py` |
+| Record the empty-address check | `02_esim.ipynb` Diagnostics | question → 0 → query line |
+| Section 5: `PairDataset`, collate (calls `encode_batch` per side), loaders | `02_esim.ipynb` section 5, from `siamese_model/data_plumbing.py` | one batch from `train_loader` prints `ids_a, lengths_a, ids_b, lengths_b, label` shapes |
+
+
+## 2026-11-03 → 11-04 — Step 4 ESIM build: sections 5–12 done, training queue ready
+
+Warm-up: skipped (David).
+
+**This session (David coded, Claude reviewed; Claude-written pieces marked):**
+- **Section 5:** `PairDataset` now imported from `siamese_model/data_plumbing.py` (Claude, at David's request); `make_collate` stays in the notebook so it uses the word-level `encode_batch`; loaders use `BATCH_SIZE`.
+- **Section 6:** `ContextEncoder` = `nn.Dropout(DROPOUT)` → Step 3 `BiLSTM` (imported from `encoder_step.py`), `forward(vectors, lengths)`; output `(n, m, 400)`.
+- **Section 7:** `attention_weights(X, Y, len_Y)` (scores `X @ Y.transpose(1, 2)`, Y's PAD → −inf via `mask[:, None, :]`, `softmax(dim=-1)`) and `align = attention_weights(...) @ Y` (split by Claude at David's request so the weights can be tested); only the side being softmaxed over is masked. Test: random `(1, 8, 5)` tensors, len 4 → weights over the first 4 sum to 1, PAD columns sum to 0.
+- **Section 8:** `enhance(A, len_A, B, len_B)` calls `align` both ways and returns `[a; ã; a−ã; a⊙ã]` per side `(n, m, 1600)`; check: shape, first block = `A`, `requires_grad`.
+- **Section 9:** `EncodeAttention` (composition) = `Linear(1600, 200)` → ReLU → Dropout → `BiLSTM(200, 200)`, one side at a time; `enhance` lives in the model's forward, not here. Check: `(n, m_a, 400)`, PAD rows 0.
+- **Section 10:** `MeanMaxPooling` (masked mean + masked max concatenated → `(n, 800)`).
+- **Section 11:** `ClassifierHead` = `Linear(1600, 200)` → **tanh** (Chen; David chose it over ReLU so the spec needs no deviation) → Dropout → `Linear(200, 1)` → `squeeze(-1)`; `ESIM` wires embed → context → enhance → compose → pool → head; check `(64,)`.
+- **Section 12:** (b) end-to-end mask test, David's stronger form: positions past `lengths` filled with a real word id (2) instead of PAD, `eval()` mode, `allclose`; A and B with different lengths (Claude) so a `len_a`/`len_b` swap would fail — passes. (c) moved to a unit test under section 7 (David). (d) overfit test on David's 10-pair toy set: loss 0.692 → ~0 by epoch 50, passes; only `APT` / `RAOD` are `UNK`, each in one pair, so no identical-input/opposite-label conflict. (e) embedding checks **written by Claude** (David deferred them to get training started): under section 3 (word → own word2vec row for first/second/middle/last word, PAD zeros, UNK = `unk` with `unk` set to ones first) and after (d) (one step: frozen rows unchanged, `unk` moved); **not yet run or discussed**.
+- **Section 13:** timing 0.056 s/batch → 2.9 min/epoch + 12.5 s val pass ≈ 3.1 min/epoch, ≤ ~62 min per seed (20 epochs max, patience 3). David: 3 seeds (0, 1, 2). `run_training` (Step 3 loop with `ESIM()`), queue cell saving `checkpoints/esim_seed_{seed}.pt` + `history_seed_{seed}.csv`, config from the setup constants, `broken_run_problems` printed. `esim/checkpoints/` added to `.gitignore`. Overnight run: not yet started at session end.
+- **Incidental bugs** (Claude fixed, rows in the debugging log): BiLSTM cell (name clash, Dropout args, missing `lengths`); mask-test `>` vs `>=` and `len_a` on side B; attention test overwrote `A, B` and crashed the section 8 check; timing `Subset(train, …)`, missing imports, `run_training` evaluated against `train`; queue cell (no `makedirs`, Step 3 config values, filenames). Also caught in review: `torch.tensor(..., dtype=torch.long)` in `enhance` (truncation + detached graph), `dim=2` on 2-D pooled tensors, B's result dropped in the first composition draft, dropout left on in the first mask-test run.
+
+- **Concepts explained:** BiLSTM output = 2 · hidden; hidden = per-direction hidden state `h_t` (short-term memory, `c_t` long-term); Dropout has no weights (only `p`), `nn.LSTM(dropout=)` acts only between stacked layers, sizes are needed only to create weights (`nn.LazyLinear` infers input size; output size is a design choice); batched `@` gives one `(m_a, m_b)` grid per pair, no row loop; mask the axis the softmax runs over (B's PAD columns), not A's PAD rows (all −inf → NaN; packing and pooling discard them); `mask[:, None, :]` read via named axes / batch axis as a for-loop / the mask as a dict pair → B pattern, copied over A's words; `softmax(dim)` normalises every 1-D slice along `dim`; pad + mask and broadcasting come from array programming (rectangular tensors), not PyTorch; `⊙` = elementwise; `torch.long` = int64; `torch.tensor(t)` detaches; `requires_grad` = connected to a trainable weight; `iter(loader)` is fresh each time, but with shuffle it advances the global RNG; projection 1600 → 200 ≈ 3× fewer parameters (overfitting risk, not underfitting), per word; ReLU after the projection, or two linear maps collapse; a single `Linear` over `[v_a; v_b]` gives each side a separate vote and can't express agreement (XOR example), a hidden layer with a nonlinearity builds interaction detectors; mean + max pooling (max keeps a single-word mismatch); invariance test = compare the model with itself; per-layer tests vs end-to-end wiring test; overfit test = can the model learn at all; word-level `UNK` can make two inputs identical.
+- **David's confusions, resolved:** thought a BiLSTM's input and output sizes match → 200 in, 400 out; expected a row loop through the BiLSTM → whole batch at once; `e` shape `(n, m_a)` → `(n, m_a, m_b)`; wanted a second (A) mask inside `align` → harmful (NaN), A's mask belongs to the other call; unsqueeze at the front → middle; thought `torch.long` was a long float; thought the overfit test was about generalisation.
+- **Open, raised by David:** why is `APT` not in word2vec's vocabulary (`min_count=2`)? Hypothesis: Overture Places are businesses (`STE` / `SUITE`, not `APT`); check token counts in `01_word2vec.ipynb`.
+
+| Next action | Where | Done when |
+|---|---|---|
+| Run the 3-seed queue overnight (`caffeinate -i`) | `02_esim.ipynb` section 13 | three `esim_seed_*.pt` + histories in `esim/checkpoints/`; `problems: []` for each |
+| Run and go through Claude's embedding checks | `02_esim.ipynb` under section 3 and after test (d) | both cells pass; David explains what each assert would catch |
+| Section 14: val per slice incl. `case2s` for each seed vs word2vec baseline and the `case2s`-trained siamese; pick the run; test once | `02_esim.ipynb` section 14, `results.md` | slice table + one ESIM row in `results.md` |
+| Swap test (score(A, B) vs score(B, A)) | `02_esim.ipynb` Diagnostics | count of test predictions that change when sides are swapped |
+| Cleanups: `EMB_DIM` → `HIDDEN` / `MLP_HIDDEN` in `ContextEncoder`, `EncodeAttention`, `ClassifierHead`; names (`EncodeAttention` → composition, `attention_a` → `composed_a`); asserts on the pooling cell; section 12 markdown (c moved) | `02_esim.ipynb` | no hard-coded `EMB_DIM` outside the embedding; markdown matches the cells |
+| `APT` / `STE` / `SUITE` / `UNIT` token counts | `01_word2vec.ipynb` Diagnostics | question → counts → query line |
+
+
+## 2026-11-05 — Step 4: first ESIM results, rare house numbers collide as `UNK`, `min_count=1` run queued
+
+Warm-up (logged in `logs/warm-up-log.md`): 4 questions, 2 ✓ (masked max pooling with 0, shared siamese weights), 2 ✗ with repairs (`state_dict()` returns live references, so without `deepcopy` "best" ends as the final weights; RF feature subsets decorrelate trees so averaging cuts variance).
+
+**Overnight run:** 3 seeds finished, `problems: []` each; early stop at epochs 10 / 8 / 7 (best 7 / 5 / 4). Embedding check (e) ran and passed (frozen rows unchanged after one step, `unk` moved); it compares with the pre-training table, the section 12 alignment assert covers equality with word2vec.
+
+**Section 14 (David):** 14a val and 14b test per slice for all 3 seeds. **Protocol slip:** all 3 seeds were scored on test before a run was chosen → no run is picked; test is reported as the min–max range over seeds, nothing is chosen from it. Test: identical found 95.5 / 95.9 / 100.0, non-identical 77.9–80.7, case1 96.1–98.4, case2s 73.9–75.5 (val 76.1–80.0), case2 40–47% (n = 15, noise). `results.md` row not written yet.
+
+**Finding (D1–D4, David ran, Claude wrote D3/D4 code on request):** every earlier model finds 99–100% of identical positives; ESIM seeds 0/1 miss ~150 on test. Cause: rare house numbers (`min_count=2`) all map to one `UNK`, so a case1 pair with two rare numbers on the same street (`2147 SUMMER ST` / `1867 SUMMER ST`) is the *same input* as an identical pair with a rare number, with the opposite label. Each seed picks one default for that input:
+
+| same street, both numbers `UNK` | seed 0 | seed 1 | seed 2 |
+|---|---|---|---|
+| val identical found (n = 78) | 29 | 9 | 78 |
+| val case1 rejected (n = 161) | 141 | 158 | 0 |
+| test identical found (n = 178) | 32 | 20 | 178 |
+| test case1 rejected (n = 404) | 381 | 387 | 0 |
+
+All seed 0/1 identical misses are in the group (val 49/49, 69/70; test 146/146, 158/158); 404 of seed 2's 566 test case1 errors too (outside the group seed 2 is best: 162 vs 225 / 207). Larger on test because test has more such rows. Not fixable by training; the number has to reach the model.
+
+**Decision (David): retrain word2vec with `min_count=1`, then ESIM.** Claude's pre-check (161 val case1 group pairs, number-vs-number cosine in the new model) shows the collision survives in softer form: group mean 0.92, 66% > 0.9 vs random house-number pairs 0.57, 0.6% > 0.9 — numbers on the same street share neighbours. Claude recommended a context-free vector per rare word (fixed random) or char expansion instead; David chose to test `min_count=1` anyway (fair: measured beats predicted). Setup by Claude: `W2V_MIN_COUNT` switch in Setup → `W2V_PATH` / `CHECKPOINT_DIR` (`checkpoints/esim_mc{1,2}/`); old runs moved to `esim_mc2/`; 14a/14b save predictions; new 14d compares settings from saved predictions; D1–D4 define the group with the `mc2` vocab. Verified: `word2vec_50_mc2.model` (retrain) = vocab and table of the deleted `word2vec_50.model` saved inside the old checkpoints. `min_count=1` run started at session end.
+
+**fastText (feedback David received):** "char n-gram + word embeddings" = fastText subword vectors (word = sum of its char 3–6-gram vectors). David: test it in ESIM, not the siamese model (char-BiLSTM siamese is superseded by Step 5 anyway). Expect `4817` / `4819` to stay similar (shared n-grams); run the 161-pair check first.
+
+- **Incidental bugs** (Claude fixed, rows in the debugging log): sample mask from the wrong seed; lambda used before definition (D2, re-applied after a save overwrote it); stale `res[0]` after rename.
+- **Claude did on request:** imports, section 14 / Diagnostics layout, D3 and D4 code, D2–D4 result markdown, word2vec 161-pair check, `min_count` switch plumbing.
+- **Concepts explained:** test once only after choosing — if every seed was scored, report the range and choose nothing; val for decisions, test to confirm; same input → same prediction in `eval()`, so identical inputs with opposite labels force a per-input default; a high overall accuracy can hide a trade-off between slices — compare the slices that should move together; "accounts for 100% of misses" vs the rejection rate per group (read the table both ways); word2vec places words by neighbours, so numbers on the same street get similar vectors, and numeric difference doesn't predict similarity; fastText subword vectors.
+- **David's confusions, resolved:** read `for c in string` as per-character (it's per word: `strings` was already tokenised); read seed 2's 100% as "handles rare numbers" (it's the other default); read "says yes" as "contains `UNK`"; thought D3 was about confidence scores / the `UNK` vector; read high case1-group similarity as success.
+
+**Later the same day — both retrains done.**
+- `min_count=1` ESIM: 3 seeds in `checkpoints/esim_mc1/` (finished 17:44), val/test predictions saved.
+- **fastText (David: test it in ESIM):** `FastText` with the same settings as word2vec `min_count=1` plus char 3–6-grams, saved as `checkpoints/fasttext_50_mc1.model` (+ a 1.6 GB n-gram file). Val AUC case2s 0.62, case3 0.97, the same as word2vec.
+- **fastText collision check** (same 161 group pairs / 1,000 random pairs), measured:
+
+  | | group mean | random mean | group > 0.9 | random > 0.9 |
+  |---|---|---|---|---|
+  | word2vec mc1 | 0.92 | 0.57 | 66% | 0.6% |
+  | fastText | 0.79 | 0.68 | 1.9% | 0.4% |
+
+  Interpretation is David's, still to do.
+- fastText ESIM: a temporary queue cell under §13 (written by Claude, to be folded into the Setup switch) trained 3 seeds into `checkpoints/esim_ft_mc1/` (finished 18:47), predictions saved.
+- After that cell runs, `w2v` / `vocab` / loaders point at fastText, so restart the kernel before any `min_count=1` cell.
+- The word2vec files re-saved at 17:22 match what the checkpoints were trained on (verified).
+- No ESIM results looked at yet for either retrain.
+
+| Next action | Where | Done when |
+|---|---|---|
+| Check both retrains' `problems:` lines (`esim_mc1`, `esim_ft_mc1`) | `02_esim.ipynb` §13 outputs / histories | `problems: []` for all 6 |
+| Fold fastText into the Setup switch, delete the temporary queue cell, add `esim_ft_mc1` to 14d | `02_esim.ipynb` (Claude) | one switch picks mc2 / mc1 / ft |
+| `min_count=2` predictions for the comparison | set `W2V_MIN_COUNT = 2`, Restart & Run All (no training) | `esim_mc2/preds_*.npy` exist; 14d shows both settings |
+| Compare: 14d slices + D2–D4 `UNK` group under all three settings | `02_esim.ipynb` | David states whether the identical/case1 trade-off on the group shrank, per setting |
+| Interpret the fastText collision check | `01_word2vec.ipynb` Diagnostics | result + interpretation line |
+| Fix the word2vec collision-check markdown (result + interpretation) | `01_word2vec.ipynb` Diagnostics | result line filled; reads high similarity as the collision |
+| Decide the number fix from the 3-way comparison (or try fixed random per rare word / char expansion) | deliberation | one setting chosen on val |
+| `results.md` ESIM row (test min–max, val min–max) | `results.md` | row + note that no run was picked |

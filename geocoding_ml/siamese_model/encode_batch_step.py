@@ -1,8 +1,7 @@
-from importlib import import_module
 
 import torch
 
-_vocab_step = import_module("siamese_model.01_vocab_step")   # digit-prefixed filename -> can't use `from ... import`
+import siamese_model.vocab_step as _vocab_step
 normalize = _vocab_step.normalize
 PAD_ID, UNK_ID = _vocab_step.PAD_ID, _vocab_step.UNK_ID
 

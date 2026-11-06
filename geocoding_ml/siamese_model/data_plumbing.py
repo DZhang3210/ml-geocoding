@@ -4,12 +4,11 @@ PairDataset[i] -> one pair as raw strings + label; make_collate(vocab) -> the
 DataLoader's collate_fn, which encodes each side per batch (padding only to
 that batch's longest string).
 """
-from importlib import import_module
 
 import torch
 from torch.utils.data import Dataset
 
-encode_batch = import_module("siamese_model.03_encode_batch_step").encode_batch   # digit-prefixed filename -> can't use `from ... import`
+from siamese_model.encode_batch_step import encode_batch
 
 
 class PairDataset(Dataset):

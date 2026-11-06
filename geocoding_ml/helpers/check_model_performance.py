@@ -71,6 +71,7 @@ def find_random_sample_given_mask(
     attributes: list[str] | None = None,
     title = None,
     seed: int | None = 0,   # fixed so a sample can be re-shown; None = new sample each call
+    size: int = 10
 ):
   
     preds, labels = _as_flat_int_array(preds), _as_flat_int_array(labels)
@@ -92,4 +93,4 @@ def find_random_sample_given_mask(
 
     if title:
         print(f"{'='*10}{title}{'='*10}")
-    return df.sample(frac=1, random_state=seed).head(10)
+    return df.sample(frac=1, random_state=seed).head(size)
