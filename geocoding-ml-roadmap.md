@@ -16,7 +16,7 @@
 | 2b  | Real cross-source pair dataset        | — (Overture Maps Places + bridge files)         | 3-5 days  | ✅ (labelled subset deferred) |
 | 2c  | Rule-based baseline                   | libpostal (normalization + dedupe)              | 1 day     | ✅     |
 | 3   | Hand-built matching architecture      | Reimers & Gurevych (2019)                       | 4-6 days  | ✅     |
-| 4   | Reproduce a published DL approach     | Lin et al. (2020)                               | 4-5 days  | 🔶      |
+| 4   | Reproduce a published DL approach     | Lin et al. (2020)                               | 4-5 days  | ✅     |
 | 5   | Swap in pretrained transformer        | Siamese Transformer Networks (arXiv 2307.02300) | 3-4 days  | ⬜      |
 | 6   | Real error analysis                   | Kilic et al. (2024)                             | 2-3 days  | ⬜      |
 | 7   | Write it up                           | —                                               | 3-4 days  | ⬜      |
@@ -144,7 +144,7 @@ This is a planning aid, not a commitment — if Week 2 runs into Week 3, that's 
   3. Keep your Step 3 dataset splits identical here — the whole point is a fair comparison.
   4. Note where your reproduction diverges from their reported numbers, and have a hypothesis why (different dataset, different address conventions, smaller scale).
 - **Pre-reading note (2026-10-23):** Lin et al. full text is paywalled (T&F; see `papers/README.md`): only the abstract is confirmed (word2vec → ESIM, Shenzhen Address Database, P/R/F1 0.97). Read the original ESIM paper (Chen et al. 2017, arXiv 1609.06038) for the mechanism, and **Ramani & Borrajo (2024, arXiv 2403.12092)** — the only English-address ESIM adaptation found (GloVe, optional character embeddings). Deliberation questions: word vs character tokens (typos, house numbers as tokens), word2vec on our corpus vs pretrained, how a cross-encoder changes the comparison with Step 3.
-- **Status note (2026-11-05): 🔶 — first ESIM results; rare-number fix under test.** 3 seeds trained; all scored on test before a run was chosen, so test is reported as a min–max range (identical 95.5–100, non-identical 77.9–80.7, case1 96.1–98.4, case2s 73.9–75.5). Diagnostics D1–D4: rare house numbers (`min_count=2`) collapse to one `UNK`, making same-street case1 pairs identical to identical positives as input; each seed picks one default. word2vec retrained with `min_count=1` (pre-check: same-street numbers still cos ≈ 0.92) and ESIM retrained behind a `W2V_MIN_COUNT` switch (`checkpoints/esim_mc{1,2}/`); fastText vectors (char 3–6-grams) also trained and ESIM retrained on them (`esim_ft_mc1/`). Next: compare the three settings in 14d / D2–D4, choose the number fix on val, `results.md` row, swap test.
+- **Status: ✅ done (2026-11-09).** Word-level ESIM, 5 embedding settings × 3 seeds; rare-number fix `rand_mc2` (word2vec mc2 + a fixed random row per dropped token) chosen on val by a rule fixed beforehand. `results.md`: `mc2` + `rand_mc2` rows, Step 4 vs Step 3 (cross-encoder bought nothing measurable; two changes at once), vs Lin et al. (not directly comparable: data, negatives, metric). David rewrote the notebook notes in his own words (02, 03), checked by Claude. Status history: `logs/roadmap-status-history.md`.
 - **Finish threshold:** A results table with three rows (Step 1 baseline, your Step 3 model, this reproduction) on the same test split, plus one paragraph on how your numbers compare to what Lin et al. reported and why.
 
 ### 5 — Swap in a pretrained transformer encoder
@@ -157,6 +157,7 @@ This is a planning aid, not a commitment — if Week 2 runs into Week 3, that's 
   2. Use Hugging Face `transformers` for DistilBERT, but write your own fine-tuning loop rather than a one-line `Trainer.fit()` call — you want to see the gradient updates happening, not abstract them away.
   3. Try freezing most of DistilBERT's layers and only fine-tuning the top 1-2 plus your similarity head first — full fine-tuning on a small dataset can overfit fast.
   4. Watch for the classic small-dataset-transformer failure mode: near-perfect train accuracy with poor validation performance. If you see this, it's a real, useful finding for your error analysis, not just a problem to fix.
+- **Status note (2026-11-07): ⬜ — reading done, not started.** Read: DistilBERT §2–3, Poly-encoders §4.2–4.3, Duarte & Oliveira §3.2/§4/§5/App. B, Mosbach et al. 2020 §3/§5, ULMFiT §3.2–3.3. Open for deliberation: bi-encoder only, or bi + cross-encoder (a 2 × 2 with Steps 3/4); local M1 Pro vs Colab (estimate ≈ 15–30 min/epoch on MPS, unmeasured).
 - **Finish threshold:** A fourth row on your results table, and a one-paragraph comparison of this model's F1 and qualitative behavior against Step 3's hand-built version — specifically naming what the pretrained encoder bought you.
 
 ### 6 — Real error analysis

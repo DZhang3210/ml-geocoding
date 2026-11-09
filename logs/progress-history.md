@@ -677,3 +677,53 @@ All seed 0/1 identical misses are in the group (val 49/49, 69/70; test 146/146, 
 | Fix the word2vec collision-check markdown (result + interpretation) | `01_word2vec.ipynb` Diagnostics | result line filled; reads high similarity as the collision |
 | Decide the number fix from the 3-way comparison (or try fixed random per rare word / char expansion) | deliberation | one setting chosen on val |
 | `results.md` ESIM row (test min–max, val min–max) | `results.md` | row + note that no run was picked |
+
+
+## 2026-11-06 → 11-07 — Step 5 reading (while ESIM expansions ran)
+- Warm-up skipped (David). Reading list for Step 5, in order: DistilBERT §2–3, Poly-encoders §4.2–4.3 + speed table, Duarte & Oliveira (2023) §3.2/§4/§5/App. B, Mosbach et al. (2020) abstract/§3/§5, ULMFiT §3.2–3.3 paragraphs. All five read; David summarised 3–5, Claude corrected (Duarte: CE buys confidence separation, not top-1; hyperparameters chosen on test. Mosbach: gradient norms vanish, not learning rate; bias correction shrinks early steps; forgetting and small data ruled out as causes).
+- Concepts discussed: BERT vs word2vec (whole network, not a table; MLM trains everything; head dropped), bi- vs cross-encoder mapped to Steps 3/4, joined-row batching for the cross-encoder, stacked layers with shape-preserving residuals, self-attention as `align(X, X)` + projections, `[CLS]`/`[SEP]`/`attention_mask`.
+- Step 5 scoping: build is mostly reuse (new: HF tokenizer collate, DistilBERT + masked mean pool encoder, freezing, AdamW + warm-up; cross-encoder collate + `[CLS]` head if built). Compute estimate: 202,568 train pairs, ≈ 2 PFLOP/epoch → ≈ 15–30 min/epoch on M1 Pro MPS (unmeasured); time a 10k slice first. Recommendation (not decided): bi + cross for a 2 × 2 with Steps 3/4.
+
+
+## 2026-11-08 — Step 4: ESIM rare-number fix chosen (`rand_mc2`), `results.md` rows
+
+Warm-up (logged): 4 questions, 0 ✓, 2 partial (id split before pairing: leakage named, mechanism missing; GB classification leaf: multiplied instead of divided by p(1−p)), 2 ✗ (0.325 read as vanishing gradients — it's the base-rate loss, check the pipeline; duplicate feature read as doubling — importance is shared).
+
+**State at start:** all five ESIM settings trained, 3 seeds each, `problems: []` (`mc2`, `mc1`, `ft_mc1` from 02; `rand_mc2`, `stack_mc1` from `03_esim_extension.ipynb`, written by Claude 2026-11-06 at David's request, with `esim_model.py` / `esim_diagnostics.py`). §5 tables already printed val **and test** for every setting → same rule as 11-05: decide on val, report test min–max.
+
+**Decision rule (David, fixed before reading val):** identical positives ignored (exact-string pre-check before the model); case1 rare-number group must-pass ≥ 145 / 161 on every val seed (Claude: the pre-check does not remove those pairs — they differ as strings, collide only after `UNK`); non-identical + `case2s` decide; case2 (n = 34) ignored; case3 sanity only. Claude correction: non-identical and `case2s` are opposite-direction slices, not easy/hard versions of one another.
+
+**Reading (David, two corrections):** first picked `stack_mc1` over `mc2` from the overall case1 slice; the group table shows `stack_mc1` 126 / 148 / 128 and `mc2` 141 / 158 / 0 → both fail. Only `rand_mc2` passes (158 / 155 / 154); `ft_mc1` 151 / 151 / 144 kept out (cut not moved). Then read a ~1-pt drop on non-identical and `case2s` vs `mc2` and built mechanisms for it; seed ranges overlap on both → no detectable cost at 3 seeds, ~1 pt not ruled out. David: three seeds isn't rigorous either → discussion of SD vs standard error, the val-set's own resolution (~±1.4 pts), and "real" vs "matters".
+
+**Why random rows work (David got there with help):** the group's question is identity, not meaning; fixed random row = same token same vector, different token near-orthogonal; word2vec/fastText encode context/spelling, which put same-street numbers close; stacking keeps both blurry signals.
+
+**Written by Claude on David's request:** `03_esim_extension.ipynb` §5 Result cell (rule, passers, cost, conclusion); `results.md` `case2s` table rows `mc2` + `rand_mc2` (test min–max, val min–max), Step 4 setup bullet and paragraph; roadmap status; open questions resolved (rare-number `UNK`, fastText, test-seen-for-all-seeds).
+
+- **New open (David's idea):** a dirtier dataset for the final paper (find one, or corrupt our own); deliberate after Step 4.
+
+| Spec / decision | Where |
+|---|---|
+| Five settings, tables (health, slices, rare-number group) | `esim/03_esim_extension.ipynb` §5; `esim_diagnostics.py` `health`, `slice_table`, `rare_number_table` |
+| Rule + result | §5 **Result** cell |
+| Reported numbers | `results.md` `case2s` table, Step 4 rows + paragraph |
+
+| Next action | Where | Done when |
+|---|---|---|
+| Step 4 vs Step 3 comparison (roadmap finish threshold) | `results.md` Step 4 section (David) | one paragraph naming what the cross-encoder bought vs the siamese model, seed ranges respected |
+| Swap test | `02_esim.ipynb` or `03` | count of test predictions that change when sides are swapped, `rand_mc2` |
+| Collision-check markdown | `01_word2vec.ipynb` Diagnostics | result + interpretation line for word2vec mc1 and fastText |
+
+**Later 2026-11-08 — Step 4 vs Step 3, swap test, cleanups.**
+- Step 4 vs Step 3 paragraph written by Claude at David's request (`results.md`): cross-encoder bought nothing measurable; siamese single seed above ESIM's range on non-identical but within its own seed spread; two changes at once (bi → cross, chars → words) so the cause can't be assigned.
+- Swap test (Claude wrote the cell, David ran and read): flips 2.3–4.3% non-identical, 2.3–4.1% `case2s`, case1 0.1–0.5%, easy ≈ 0. David first read the overall 0.15–0.34% as negligible, then read `case1` as the most order-dependent from raw counts; corrected: divide by slice size, flips happen near the threshold. Doesn't separate learned source cues from leftover head asymmetry.
+- Symmetric prediction (average both orders, wrapper `SymmetricESIM`, no retrain; rule set before running): ≤ 0.6 pt change → plain numbers stand; one-line note in `results.md`. Lesson for Step 5: the joined-row cross-encoder is order-dependent → swap augmentation or averaging in the spec.
+- Cleanups done by Claude (safe ones only): `EMB_DIM` → `HIDDEN` / `MLP_HIDDEN` outside the embedding, `EncodeAttention` → `Composition` (02 and `esim_model.py`), `attention_a/b` → `composed_a/b`, `encode_batch` loop names, pooling asserts, §12 markdown. Attribute names kept (they are `state_dict` keys). Verified: 02's edited classes and the module both strict-load the `mc2` seed-0 checkpoint and reproduce its saved val predictions (41,865 identical).
+- Collision-check markdown (`01_word2vec.ipynb`): word2vec `mc1` interpretation rewritten by David (high similarity = the collision; street context in the number vectors); fastText cell already filled (labelled Claude 2026-11-08, not written in this session). `case2s` paragraph in `results.md` written by Claude from David's 10-29 read. **David's decision: Step 4 stays 🔶 until he rewrites the Step 4 write-up in his own words and Claude checks it.**
+
+## 2026-11-09 — Step 4 closed
+
+- David rewrote the Step 4 notebook notes in his own words (`02_esim.ipynb`, `03_esim_extension.ipynb`). Claude checked them against the saved outputs. Fixed by David: 14a wording, 14d `mc1` cause (near-identical same-street vectors, not noise), D5 health-check directions (flags fire at val loss ≥ 0.693 / train loss ≥ 0.30) and their reference values, 03 Results wording ("indistinguishable from noise"). Everything else Claude raised was overruled by David (his notes, his call).
+- David's feedback: notes should not restate numbers already in the outputs; cite a number only as evidence for a claim (saved to memory).
+- Concept cleared up: −log 0.5 = 0.693 is the coin-flip loss; 0.325 = BCE of always guessing negative on 1:9 (at 90%); "accuracy land" vs "loss land"; log-odds is a different quantity (the logit).
+- The roadmap finish threshold also needed a Lin et al. comparison paragraph. Written by Claude at David's request in `results.md` (not directly comparable: data, negatives, metric; one overall number hides the hard slices here too).
+- **Step 4 marked ✅.** Next: Step 5 deliberation.

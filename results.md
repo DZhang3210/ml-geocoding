@@ -50,10 +50,13 @@ Same positives, case1 and case2 as the Overture table above. The difference is t
 | libpostal, loose/off/loose | 2c | 100.0 (100.0) | **71.9** (75.7) | 97.9 (98.3) | 73.3 (50.0) | **75.1** (74.9) | 98.9 (99.4) |
 | Siamese BiLSTM, trained on the **old** train (= Step 3 row) | 3 | 100.0 (100.0) | **83.6** (87.1) | 99.4 (99.4) | 33.3 (29.4) | **22.2** (24.8) | 99.9 (99.9) |
 | Siamese BiLSTM, trained on `case2s` (mean pooling, seed 0) | 3 | 100.0 (100.0) | **80.1** (83.1) | 99.3 (99.3) | 53.3 (64.7) | **75.7** (74.5) | 100.0 (100.0) |
+| ESIM, word2vec `min_count=2` (reproduction; 3 seeds, test min–max) | 4 | 95.5–100.0 (97.9–100.0) | **77.9–80.7** (80.9–82.7) | 96.1–98.4 (98.2–99.1) | 40.0–46.7 (55.9) | **73.9–75.5** (76.1–80.0) | 99.9 (99.9–100.0) |
+| ESIM, word2vec `min_count=2` + random row per rare token (3 seeds, test min–max) | 4 | 99.9–100.0 (100.0) | **74.9–78.9** (77.8–81.8) | 98.6–98.9 (99.0–99.2) | 26.7–46.7 (55.9) | **72.9–75.9** (74.6–82.2) | 99.9–100.0 (100.0) |
 | *test n (pairs in the slice)* | | *3,543* | *843* | *14,448* | *15* | *1,053* | *23,942* |
 
 **Setup.**
 - **`case2s` backtest (2026-10-29):** the Step 1 / 1b models use the same features and default settings as before, refitted on the `case2s` train split. libpostal uses the same two settings, re-run because val/test now hold different pairs. The rows on the positive, case1 and case2 slices are the same pairs as before, which is why the libpostal numbers there are unchanged. The `case2s`-trained siamese model uses the Step 3 protocol unchanged (same architecture, guardrail and best-epoch rule; `siamese_model/15_train_on_case2s.ipynb`), with one seed only. Case2s has known noise: some same-street spelling variants are labelled as non-matches (open questions).
+- **Step 4 (2026-11-05 → 11-08):** word-level ESIM (Chen et al. 2017, as in Lin et al. 2020): frozen word2vec 200-d trained on all splits' address text (skip-gram, window 2, 50 epochs) → BiLSTM 200 → soft alignment → `[a; ã; a−ã; a⊙ã]` → projection → BiLSTM 200 → mean + max pooling → MLP 200 (tanh) → one logit, threshold 0.5; trained on the `case2s` train split, Step 3's guardrail and best-epoch rule. **Test was scored for every seed and setting before a choice was made, so each cell is the min–max over 3 seeds and no run is picked.** The setting (random row per rare token) was chosen on val only, by a rule fixed beforehand (`esim/03_esim_extension.ipynb` §5). Swap test (val, `rand_mc2`): swapping sides flips 2.3–4.3% of non-identical and 2.3–4.1% of `case2s` predictions; averaging both orders moves no slice by more than 0.6 pts, so the one-order numbers are reported. Row 1 maps every word seen once to a shared `UNK`; row 2 gives each such word its own fixed random (frozen) row. Source: `esim/02_esim.ipynb` §14, `esim/03_esim_extension.ipynb` §5.
 - **Step 1:** the same default LogReg as Step 1b, on only the three Jaro-Winkler features (street, house number, ZIP), so Step 1 vs 1b differs only in the features. The old Step 1 number (F1 0.81, 2026-09-21) used the pre-schema Stamford columns and isn't comparable.
 - **Step 1b:** default hyperparameters, no class weighting, trained on the train split. This is Step 1b's single test run (2026-10-15).
 - **Step 3 (2026-10-23):** character-level siamese bi-encoder: one shared encoder (char embedding 32 → BiLSTM 1 × 128 → masked mean pooling) applied to both strings, head `[|u−v|; u⊙v]` → one logit, `BCEWithLogitsLoss`, Adam 1e-3, threshold 0.5. Input = the two address strings only: **no ZIP features and no hand-built similarity features**. Trained on Overture train only (Stamford was dropped from Step 3, so there is no Stamford row). Best epoch = highest val non-identical found with val case1 ≥ 98%. Mean vs max pooling × 3 seeds tied within seed noise on val; mean / seed 0 went to test (seed 0 was the default before any run, not picked on val). Single test run 2026-10-23, `siamese_model/14_training_analysis.ipynb` §4.
@@ -61,6 +64,41 @@ Same positives, case1 and case2 as the Overture table above. The difference is t
 - **Where the numbers come from:** `model_baseline/06_compare_libpostal_and_dumb.ipynb`, section 4 builds both tables (nothing here is copied by hand).
 - **Stamford re-run (2026-10-16):** 30 negatives whose clean source rows are the same address (28 train, 2 test) were dropped from the Stamford pairs, and the Stamford rows re-run; no setting changed. Effect: libpostal (no training) gained exactly those 2 easy rows, i.e. both were "errors" that were really correct; the 1b models' easy slice went 99.6 → 100.0. RF and XGB moved by one row (1.7 pts) on non-identical, from the 28 fewer training rows — noise.
 - **Small slices:** Overture case2 has only 15 test rows (one row = 6.7 pts), mostly mirrored pairs, so its val↔test swings are noise. Stamford non-identical has 59 rows (one row = 1.7 pts).
+
+## Step 4 — ESIM: the rare-number collision and its fix
+
+**With the paper's set-up, rare house numbers are invisible.** word2vec with `min_count=2` drops every house number seen once, and ESIM maps all of them to one `UNK`. A same-street case1 pair like `2147 SUMMER ST` / `1867 SUMMER ST` then becomes the same input as an identical match, with the opposite label. Each seed settles on one answer for that input: seeds 0 and 1 reject it (and lose identical matches: test 95.5–95.9% found), seed 2 accepts it (and accepts all 404 such test case1 pairs).
+
+**A fixed random row per rare token fixes it; giving numbers meaning does not.** The question for these pairs is identity (same number or not), not meaning. A random row per token gives the same vector to the same token and a near-orthogonal one to a different token. Of four alternatives, only this one rejected ≥ 90% of the val rare-number case1 pairs on every seed. word2vec with `min_count=1` gives every number a vector, but numbers on the same street share neighbours (cos 0.92 vs 0.57 for random number pairs), so the collision survives. fastText vectors (character n-grams) were close but failed on one seed. Stacking word2vec and fastText still left same-street numbers similar.
+
+**Cost on the deciding slices: not detectable at 3 seeds.** On val, non-identical found and `case2s` rejected overlap between the two settings (non-identical 80.9–82.7 vs 77.8–81.8; `case2s` 76.1–80.0 vs 74.6–82.2). A cost of about 1 point can't be ruled out: three seeds and about 800–900 val rows per slice can't resolve it.
+
+**Identical matches are not a target.** An exact-string check before the model handles them, which is why the decision rule ignored that slice. The rare-number case1 pairs differ as strings, so they still reach the model and still needed the fix.
+
+**Step 4 vs Step 3: the cross-encoder bought nothing measurable.** Compared with the siamese model trained on the same `case2s` split (one seed): non-identical found 80.1 (val 83.1) vs ESIM `rand_mc2` 74.9–78.9 (val 77.8–81.8); `case2s` rejected 75.7 (74.5) vs 72.9–75.9 (74.6–82.2); case1 99.3 (99.3) vs 98.6–98.9 (99.0–99.2). The siamese number sits above ESIM's whole range on non-identical, on val and on test, but it is a single seed, and the siamese model's own seeds spanned 3.8 pts of val found in Step 3, so the honest ranking is "ESIM no better, possibly worse". `case2s` and case1 are level.
+
+**Two changes at once, so the cause can't be assigned.** Step 3 → Step 4 changes both the architecture (bi-encoder → cross-attention) and the input unit (characters → words). Word-level input is a plausible cost on non-identical matches: a typo or an unusual abbreviation becomes a different token (a rare one gets an unrelated random row), where characters still share most of the string. Ramani & Borrajo (2024) report about +1 pt from adding character embeddings to ESIM on English addresses, consistent with this, but nothing here separates the two changes. A char-level ESIM, or a word-level siamese model, would. Step 5 (a subword transformer as bi- and cross-encoder) partly addresses this, since both variants then share one input unit.
+
+**vs Lin et al. (2020): not directly comparable.** They report precision / recall / F1 of 0.97 on the Shenzhen Address Database (abstract only; the full text is paywalled, so their negatives, class balance and splits are unknown). Three things differ. Data: Chinese addresses from one city's address database vs US cross-source pairs from Overture. Negatives: ours include same-street case1 and look-alike-street `case2s` pairs at 1:9, built to be hard. Metric: one overall F1 vs accuracy per slice. A single overall number hides the hard slices here too: the same `mc2` runs score 97.6–98.1% overall accuracy on test while rejecting only 73.9–75.5% of `case2s`. So their 0.97 says nothing about how ESIM handles look-alike streets, and our slice numbers can't be read as falling short of it. (Written by Claude at David's request, 2026-11-09.)
+
+## `case2s` — what training on look-alike street swaps changed
+
+**Every learned model trades non-identical recall for `case2s` rejection.** Retrained on the `case2s` train split, each model rejects far more look-alike swaps and finds fewer true non-identical matches (test, old train → `case2s` train):
+
+| Model | Non-identical found | `case2s` rejected |
+|---|---|---|
+| LogReg, 3 features | 79.2 → 59.2 | 59.6 |
+| LogReg, 23 features | 79.0 → 50.5 | 74.4 |
+| Random forest | 83.0 → 70.1 | 88.7 |
+| XGBoost | 81.7 → 69.9 | 88.5 |
+| Siamese BiLSTM (seed 0) | 83.6 → 80.1 | 22.2 → 75.7 |
+
+The two slices pull in opposite directions: a look-alike negative and a rewritten true match are both near-misses on the street string, so a model pushed to reject the first also rejects more of the second. The feature-based models pay 13–28 pts of non-identical recall; the siamese model pays 3.5 for a 53-pt gain on `case2s`, the best exchange of the learned models. libpostal (no training) sits at the ends of the same trade-off: strict rejects 97.4% of `case2s` but finds 52.3% of non-identical matches.
+
+**What this does not show.**
+- *That the models learned "look-alike street".* `case2s` test rows are built by the same swap procedure as the training rows, so a gain there may be a construction trace rather than the concept. Real case2 (15 test rows) is the only independent check and is too small: the siamese model's 33.3 → 53.3 is 3 rows.
+- *Why non-identical recall dropped.* "Less reliance on simple heuristics" and "the decision boundary moved toward rejecting" predict the same drop. The positives that flipped between the two siamese models would separate them; that check was not run.
+- *A siamese spread.* One seed; Step 3's val seeds spanned 3.8 pts of non-identical found, so the 3.5-pt cost is within one seed's noise.
 
 ## Step 3 — hand-built siamese model vs the baselines
 
