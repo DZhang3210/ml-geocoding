@@ -21,3 +21,11 @@ geocoding_ml/siamese_model/broken/
 # Step 4 ESIM checkpoints + training histories (rebuilt by esim/02_esim.ipynb)
 geocoding_ml/esim/checkpoints/
 
+# Step 5 DistilBERT checkpoints (per-epoch "last" + per-seed "final"; rebuilt by transformers/01_bi_encoder.ipynb)
+geocoding_ml/transformers/checkpoints/
+geocoding_ml/transformers/checkpoints_dry/
+geocoding_ml/transformers/checkpoints_cross/
+
+
+# Colab upload bundle (rebuilt on demand)
+geocoding_ml_colab.zip

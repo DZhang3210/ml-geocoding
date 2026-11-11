@@ -13,6 +13,8 @@ from helpers.check_model_performance import review_typical_slices
 from siamese_model.real_training import broken_run_problems
 
 SEEDS = [0, 1, 2]
+# defines the rare-number group; relative to esim/ -- from another folder pass e.g. "../esim/checkpoints/word2vec_50_mc2.model"
+W2V_PATH = "checkpoints/word2vec_50_mc2.model"
 
 # setting name -> run folder (relative to esim/)
 SETTINGS = {
@@ -47,11 +49,11 @@ def slice_table(split_df, labels, split, settings=SETTINGS):
     return pd.DataFrame(cols)
 
 
-def rare_number_group(split_df, group_vocab=None):
+def rare_number_group(split_df, group_vocab=None, w2v_path=W2V_PATH):
     """D2-D4's group: both addresses start with a number unknown to the word2vec mc2 vocab,
     and the rest of the address is identical. Fixed vocab, so every setting is compared on the same rows."""
     if group_vocab is None:
-        group_vocab = Word2Vec.load("checkpoints/word2vec_50_mc2.model").wv.key_to_index
+        group_vocab = Word2Vec.load(w2v_path).wv.key_to_index
     strip_number = lambda s: s.str.replace(r"^(\d+\s+)", "", regex=True)
     grp = np.ones(len(split_df), dtype=bool)
     for side in ["a", "b"]:
@@ -61,10 +63,10 @@ def rare_number_group(split_df, group_vocab=None):
     return grp & (strip_number(split_df["address_a"]) == strip_number(split_df["address_b"])).values
 
 
-def rare_number_table(splits, settings=SETTINGS):
+def rare_number_table(splits, settings=SETTINGS, w2v_path=W2V_PATH):
     """02's D5. splits: {"val": (df, labels), "test": ...}. Per (split, setting, seed):
     identical positives found / case1 negatives rejected inside the rare-number group, and errors outside it."""
-    group_vocab = Word2Vec.load("checkpoints/word2vec_50_mc2.model").wv.key_to_index
+    group_vocab = Word2Vec.load(w2v_path).wv.key_to_index
     rows = []
     for split, (split_df, labels) in splits.items():
         grp = rare_number_group(split_df, group_vocab)

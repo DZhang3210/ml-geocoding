@@ -17,12 +17,15 @@
 | 2c  | Rule-based baseline                   | libpostal (normalization + dedupe)              | 1 day     | ✅     |
 | 3   | Hand-built matching architecture      | Reimers & Gurevych (2019)                       | 4-6 days  | ✅     |
 | 4   | Reproduce a published DL approach     | Lin et al. (2020)                               | 4-5 days  | ✅     |
-| 5   | Swap in pretrained transformer        | Siamese Transformer Networks (arXiv 2307.02300) | 3-4 days  | ⬜      |
+| 5   | Swap in pretrained transformer        | Siamese Transformer Networks (arXiv 2307.02300) | 3-4 days  | 🔶     |
+| D   | Light analysis + deliverable decision | — (Step 8's survey read here)                   | 1-2 days  | ⬜     |
 | 6   | Real error analysis                   | Kilic et al. (2024)                             | 2-3 days  | ⬜      |
 | 7   | Write it up                           | —                                               | 3-4 days  | ⬜      |
 | 8   | Position within field taxonomy        | 2024 survey (IJGI 13(4):138)                    | 1 day     | ⬜      |
 | 9   | *(stretch)* Geographic feature fusion | GeoBERT, GeoRoBERTa                             | 3-5 days  | ⬜      |
 | 10  | *(later-stage)* Professor outreach    | —                                               | 1 day     | ⬜      |
+
+**Run order from Step 5 on (2026-11-09, David):** 5 → **D** (light analysis of the Step 5 results + Step 8's survey + decide what the paper delivers: claim, dataset, possibly a retrieval setting) → 6 (deep error analysis, on the final set-up only) → 7 (write-up, Step 8's positioning written in) → 9 / 10 optional. Reason: no deep analysis on a set-up the paper may not use. Step numbers are kept so older references stay valid.
 
 **Core chain (Steps 1-8) total: roughly 20-28 working days**, i.e. about 4-6 weeks at full-time pace. This is a rough planning estimate, not a deadline — expect steps 3-5 in particular to run long the first time through, since that's where most of the actual new learning happens.
 
@@ -157,13 +160,34 @@ This is a planning aid, not a commitment — if Week 2 runs into Week 3, that's 
   2. Use Hugging Face `transformers` for DistilBERT, but write your own fine-tuning loop rather than a one-line `Trainer.fit()` call — you want to see the gradient updates happening, not abstract them away.
   3. Try freezing most of DistilBERT's layers and only fine-tuning the top 1-2 plus your similarity head first — full fine-tuning on a small dataset can overfit fast.
   4. Watch for the classic small-dataset-transformer failure mode: near-perfect train accuracy with poor validation performance. If you see this, it's a real, useful finding for your error analysis, not just a problem to fix.
-- **Status note (2026-11-07): ⬜ — reading done, not started.** Read: DistilBERT §2–3, Poly-encoders §4.2–4.3, Duarte & Oliveira §3.2/§4/§5/App. B, Mosbach et al. 2020 §3/§5, ULMFiT §3.2–3.3. Open for deliberation: bi-encoder only, or bi + cross-encoder (a 2 × 2 with Steps 3/4); local M1 Pro vs Colab (estimate ≈ 15–30 min/epoch on MPS, unmeasured).
+- **Status note (2026-11-11): 🔶 — 5a done, 5b training.** 5a: 3 seeds, test non-identical 82.0–83.7 / `case2s` 58.2–62.9; AUC level with ESIM; blind spot = matches with a missing house number (`results.md` Step 5a section). 5b §2–7 built, 3-seed run going locally on MPS. Next: 5b §8 + reading, then Step D. Spec: `geocoding_ml/transformers/step5_spec.md`.
 - **Finish threshold:** A fourth row on your results table, and a one-paragraph comparison of this model's F1 and qualitative behavior against Step 3's hand-built version — specifically naming what the pretrained encoder bought you.
+
+### D — Light analysis + deliverable decision *(added 2026-11-09)*
+- **Est. time:** 1-2 days.
+- **Task:** Before any deep analysis, decide what the final paper delivers.
+- **Implementation instructions:**
+  1. Light analysis of Step 5 only: the slice tables and rare-number case1 check already produced for every model, plus a few spot checks of misses (`find_random_sample_given_mask`). No failure taxonomy yet.
+  2. Read Step 8's survey now (positioning is part of choosing the contribution); its write-in happens in Step 7.
+  2b. **Novelty check (added 2026-11-11).** Deep-learning address matching on its own isn't new (Lin et al. 2020; Duarte & Oliveira 2023), so the contribution must come from the setting and the evaluation. For each candidate, search the survey's references and recent papers for prior work, and note the result (new / partly done / done, with the closest paper):
+
+     | Candidate contribution | What to search for |
+     |---|---|
+     | Open real US cross-source address-pair benchmark (Overture ↔ Foursquare) | Existing open US / English address-matching benchmarks |
+     | Results per hard-negative slice (same street with a different number; look-alike streets), not overall accuracy | Whether error-analysis papers (e.g. Kilic et al. 2024) already report these |
+     | Rules, classical, siamese, ESIM and transformer on identical splits | How many papers compare more than one or two baselines |
+     | Specific failure modes: missing house number; errors that vary across ZIP codes; street-name-only angle (open question) | Whether the missing-number gap or spatial variation of matching errors is documented |
+
+     The value proposition the check tests: *how well do learned address matchers handle the hard cases in real, open, cross-source US data, and where do they fail?* Lab fit for each framing: `professor-research.md` §3.
+  3. Decide the paper's claim and set-up: keep the current Overture pairs, add a dirtier dataset (found or self-corrupted), and/or a retrieval setting (ZIP block → bi-encoder top-k → cross-encoder rerank → threshold). Open questions: "A dirtier dataset" and "Centralised results view" in `open-questions-and-debugging.md`.
+  4. If the set-up changes, list which models must be re-run on it before Step 6.
+- **Finish threshold:** A short written decision (claim, dataset(s), metrics, models to re-run) that Steps 6 and 7 then follow.
 
 ### 6 — Real error analysis
 - **Paper:** Kilic et al. (2024), *"Unveiling the impact of machine learning algorithms on the quality of online geocoding services: a case study using COVID-19 data"*
   - DOI / publisher: https://doi.org/10.1007/s10109-023-00435-8
 - **Est. time:** 2-3 days.
+- **When:** after Step D, on the set-up the paper uses (2026-11-09).
 - **Task:** Categorize the best model's failures (abbreviations, unit numbers, directionals, typos) using their "quality impact" framing.
 - **Implementation instructions:**
   1. Pull every false positive and false negative from your best model's test-set predictions into one table.
@@ -186,6 +210,7 @@ This is a planning aid, not a commitment — if Week 2 runs into Week 3, that's 
 - **Paper:** 2024 survey, *"A Novel Address-Matching Framework Based on Region Proposal"* (geodesic-grid prediction vs. text-semantic address matching), IJGI 13(4):138
   - DOI / publisher: https://doi.org/10.3390/ijgi13040138
 - **Est. time:** 1 day.
+- **When:** read during Step D (it informs the deliverable decision); written into Step 7 (2026-11-09).
 - **Task:** Use their taxonomy to frame the writeup's related-work/positioning section.
 - **Implementation instructions:**
   1. Re-read your Step 7 related-work section and explicitly state which taxonomy branch (grid-prediction vs. text-semantic matching) your whole project sits in.

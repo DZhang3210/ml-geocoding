@@ -2,6 +2,38 @@
 
 **What this file is (since 2026-10-16):** the short index read at the start of every session: where each step stands, papers reviewed, every concept already explained (one line each), and the next-session plan. The full dated session entries, with all the detail, live in `logs/progress-history.md` (the complete log up to 2026-10-16, moved there unchanged; new full entries are appended there). Before explaining a concept that isn't listed here, grep `logs/progress-history.md` for it.
 
+## Schedule (baseline set 2026-11-09, David: 7 active h/day)
+Targets assume **7 active h/day, Mon–Fri** (David's choice; his best measured days were 8.3–9.3 h, his average so far ~3.5 h). Remaining hours per step = roadmap midpoint × 7 h (his per-hour pace ≈ the estimates), ÷ 7, rounded up. Step 8's survey is read in D and written in 7. Report at session start and when logging progress: **"Schedule: Step X, target YYYY-MM-DD → N working days ahead / behind / on track."** Count Mon–Fri days only. Ahead/behind for an unfinished step = working days between today and its target, if today is past the target; a finished step compares its finish date with its target. Re-baseline only when David asks; the old table goes to the history.
+
+| Step | Hours left (est.) | Working days | Target finish | Actual finish |
+|---|---|---|---|---|
+| 5 — DistilBERT 5a + 5b | ~18 | 3 | 2026-11-12 | |
+| D — light analysis + deliverable decision | ~10 | 2 | 2026-11-16 | |
+| 6 — deep error analysis | ~18 | 3 | 2026-11-19 | |
+| 7 — write-up (incl. Step 8 positioning) | ~25 | 4 | 2026-11-25 | |
+
+### Step 5 task budget (estimated hours; feeds efficiency numbers 2 and 3)
+Step 5 window: 2026-11-09 → 11-12 (4 working days, incl. the start day).
+
+| Task | Budget h | Done |
+|---|---|---|
+| Deliberation + spec | 5 | 2026-11-09 |
+| Token-length check | 0.5 | 2026-11-09 |
+| 5a §2 tokenise + collate (tested) | 1.5 | 2026-11-09 |
+| 5a §3 encoder + test | 1.5 | 2026-11-10 |
+| 5a §4–6 head, optimiser, timing | 2.5 | 2026-11-10 |
+| 5a §7–8 training, results | 3.5 | 2026-11-11 (3 seeds on Colab, §8 predictions + slice tables) |
+| 5b (all sections + timing) | 6 | 4.5 of 6 (§2–7 built, timing, dry run passed 2026-11-11; 3-seed run going locally on MPS overnight; §8 left) |
+| Results reading + comparison paragraph | 3.5 | 2 of 3.5 (5a done 2026-11-11: AUC column, missing-number finding in `results.md`; 5b left) |
+| **Total** | **24** | **21 done** |
+
+**Day log**
+| Date | Time spent | Productivity | Progress vs plan |
+|---|---|---|---|
+| 2026-11-09 | Below: about a quarter under the 7 h target (5.4 h) | Good: about twice the estimated pace (soft, mostly deliberation) | Ahead: about a third more than the day's share (a third of Step 5 done; a quarter needed) |
+| 2026-11-10 | Below: about a third under the 7 h target (4.5 h) | Good: about 10% above the estimated pace (5 budget h in 4.5 h; §7 counted as 2 of 3.5) | Slightly below: about a fifth of Step 5 done, a quarter needed; overall still on track (54% done after half the days) |
+| 2026-11-11 | Below: about a quarter under the 7 h target (5.2 h) | Good: about 50% above the estimated pace (8 budget h in 5.2 h) | Ahead: a third of Step 5 done, a quarter needed; 88% done after three of four days |
+
 ## Where each step stands
 | Step | Status | One line | Detail in history |
 |---|---|---|---|
@@ -13,7 +45,7 @@
 | 2c — libpostal baseline | ✅ 2026-10-15 | Overture test non-identical found 52.3–71.9% vs 79–83% for Step 1b, but rejects 73–80% of case2 vs 7–47%; Stamford 39% | 2026-10-14, 2026-10-15 |
 | 3 — siamese network | ✅ 2026-10-23 | Char-level siamese BiLSTM, no ZIP features: Overture test non-identical found 83.6 (val 87.1) vs Step 1 79.2 / RF 83.0 — beats Step 1 by ≈ seed noise, ties RF; pooling mean = max within seed noise; `results.md` row + paragraph | 2026-10-16, 2026-10-18 → 10-23 |
 | 4 — ESIM reproduction | ✅ | Spec decided 2026-10-24 (word2vec 200 + ESIM 200, frozen, pure first, char expansion); **case2 data step done 2026-10-29:** `case2s` swaps (JW > 0.8, ≤ 5 per street pair) replace easy negatives in all splits (train 5,441 / val 894 / test 1,053; files `ct_pairs_*_case2s.parquet`, 1:9 kept, acceptance 0 issues, as hard as real case2 by JW); same-street spelling variants in the high JW band accepted as a known limit; **backtest + siamese retrained on `case2s` done 2026-10-29** (David: `case2s` and `case2` much higher, non-identical lower, rest about the same; one seed; numbers in `results.md` 2026-10-30); **word2vec set-up started 2026-10-30:** settings decided (`overture_case2s`, skip-gram, `window=2`, `min_count=2`, epochs 5/20/50 picked by val AUC non-identical vs `case2s`); Cell A helpers (tokenise, address vector, pair cosines, AUC) done; **word2vec done:** 50 epochs chosen (val case2s AUC 0.62, differences within noise), saved as `esim/word2vec_50.model`; **ESIM build started 2026-11-02** (`esim/02_esim.ipynb`, spec in its header: symmetry = original `[v_a; v_b]` + swap test later, MLP 200, dropout 0.3): sections 2–4 done (load, vocab + `EmbeddingLayer` with frozen table and trainable `UNK`, `encode_batch`); `tokenize` shared via `esim/tokenizer.py`; **sections 5–12 done 2026-11-04** (loaders, context BiLSTM, `attention_weights` / `align`, `enhance`, composition, mean + max pooling, tanh head, `ESIM`; mask invariance + overfit tests pass; embedding checks written by Claude, not yet run); 3.1 min/epoch → 3 seeds trained (section 13); **first results 2026-11-05:** all 3 seeds scored on test before choosing → reported as a range (test case2s 73.9–75.5, identical 95.5–100); finding: rare house numbers collapse to one `UNK`, so same-street case1 pairs = identical pairs as input (D1–D4); `min_count=1` word2vec (pre-check: collision survives softly, cos 0.92) → ESIM retrained behind a `W2V_MIN_COUNT` switch (`esim_mc1/`); fastText (same settings + char 3–6-grams; collision check group 0.79 vs random 0.68) → ESIM retrained into `esim_ft_mc1/` via a temporary queue cell; both retrains done; **2026-11-06:** two more settings (`rand_mc2` = fixed random row per dropped token, `stack_mc1` = `[word2vec; fastText]`) in `esim/03_esim_extension.ipynb` (Claude, on request); **2026-11-08: fix chosen on val by a rule fixed beforehand** (rare-number case1 group ≥ 90% on every seed = must-pass; non-identical + `case2s` decide): only `rand_mc2` passes, no detectable cost; `results.md` rows `mc2` + `rand_mc2` (test min–max) + Step 4 paragraph; **closed 2026-11-09** after David's own-words notes in 02 / 03 (checked by Claude) and the Lin et al. paragraph (Claude, on request) | 2026-10-23 → 11-09 |
-| 5 — pretrained transformer | ⬜ (reading done 2026-11-07) | Reading list done (DistilBERT, Poly-encoders, Duarte & Oliveira, Mosbach, ULMFiT); open: bi-encoder only vs bi + cross (2 × 2 with Steps 3/4); time one epoch on a 10k slice before choosing M1 Pro vs Colab | 2026-11-06 → 11-07 |
+| 5 — pretrained transformer | 🔶 (spec 2026-11-09) | Spec in `geocoding_ml/transformers/step5_spec.md`: 5a DistilBERT bi-encoder (= Step 3 set-up) + 5b cross-encoder (= ESIM-style mean + max), both on fixed pairs; retrieval kept out; AdamW enc 2e-5 / head 1e-3; `max_length=64`; symmetry deferred. 5a §2–6 built and tested; §6 timing: 25 min/epoch on M1 Pro MPS vs ≈ 10 on Colab T4 → Colab; §7 (5 epochs, patience 2, per-epoch save/resume, dry run passed); 5a 3-seed run done (Colab, rerun after Drive filled; seeds 0/1 best = last epoch, 5 kept, David); §8: test 82.0–83.7 non-identical / 58.2–62.9 `case2s`, row in `results.md`; AUC check: level with ESIM once thresholds match, RF ranks best only through missing-number matches (5a best excluding them) → `results.md` Step 5a section + AUC column for all models. **5b §2–7 built 2026-11-11** (`tok(a, b)` pairs, mean + max pooling incl. specials, ESIM head 0.3, 16.1 min/epoch train on MPS, 5 epochs / patience 2, `checkpoints_cross/`, `last.pt` deleted after `final.pt`, dry run passed); 3-seed run going locally overnight (no Colab credits); 5b §8 + reading left | 2026-11-06 → 11-11 |
 
 ## Papers reviewed
 | Paper | Date reviewed | One-line takeaway |
@@ -223,8 +255,34 @@
 - A fixed random row per rare token = identity signal (same token → same vector, different → near-orthogonal); word2vec/fastText give meaning/spelling, which says same-street numbers are close; stacking two blurry signals doesn't make a sharp one
 - Standard deviation (spread of seeds, doesn't shrink) vs standard error of the mean (≈ SD/√n, shrinks); two separate n's: seeds and val rows (≈ ±1.4 pts at 80% on ~800 rows); with enough n any gap is "real", then the question is whether it matters
 
+**Step 4 notes review (2026-11-09, 2nd pass)**
+- `dict.get(key)` looks up one key (missing → `None`; `d[key]` raises); `.apply(f)` calls `f` on one row's value; inner brackets (`[0]`) run before the outer call; `wv.key_to_index` is a plain dict
+- vocab (word → id, used by the loader) vs embedding matrix (id → vector, inside the model); a frozen table is still saved in the `state_dict`, so `load_state_dict` overwrites it
+- A rewritten module can keep every weight shape and still change behaviour (concat order, pooling, activation, freezing) → check it reproduces saved predictions
+- `.npy` = one NumPy array on disk (`np.save` / `np.load`); `broken_run_problems`' `max_found == 0` = run collapsed to "always no"
+- A gain on one side of a colliding group (identical) must be read against the other side (case1) before calling it a fix
+
 **Loss reference points (2026-11-09)**
 - BCE per row = −log(probability given to the right answer); a 50/50 guess scores −log 0.5 = 0.693 (coin-flip line), always guessing negative on 1:9 at 90% scores 0.325 (base-rate line). Accuracy land (yes/no, 90% right) vs loss land (a probability per pair): same lazy model, two measures. Log-odds = log(p/(1−p)), the pre-sigmoid logit, a different quantity.
+
+**Step 5 deliberation + 5a build (2026-11-09)**
+- Fine-tuning lr: Adam moves each weight ≈ lr per step; pretrained weights ~0.02 → 1e-3 overwrites them in ~20 steps, 2e-5 in ~1,000; from scratch = travel far (big lr), pretrained = nudges. Two parameter groups (encoder 2e-5, random head 1e-3) + warm-up
+- WordPiece = greedy longest match from the left: `4817` → `48 ##17`, `123` whole; `4817`/`4819` differ in one piece → no `UNK` collision; unlike fastText (one vector = sum of overlapping n-grams), each piece is its own token
+- DistilBERT has no token-type embeddings: in `[CLS] A [SEP] B [SEP]` the sides differ only by position + `[SEP]`; order dependence is harmless if deployment order is fixed
+- Tokenizer (no weights) vs `AutoModel.from_pretrained` (66M weights, bare encoder); use the pretrained vocab as is; `tok.tokenize` omits `[CLS]`/`[SEP]`; HF `attention_mask` 1 = real, 0 = pad; register the model as `self.bert` inside `__init__`
+- DistilBERT's `[PAD]` positions get nonzero vectors (Step 3's `pad_packed_sequence` gave zeros) → masked mean `(h * mask[..., None]).sum(1) / mask.sum(1, keepdim=True)`; pad-invariance test with a broken unmasked control
+
+**5a build, day 2 (2026-11-10)**
+- A shape assert catches wrong-axis pooling / missing pooling, not wrong values; the pad-invariance test feeds the same addresses in a short and a long batch (`[:2]` = rows); its broken control (unmasked `h.mean(1)` on `.bert(...)` output, pooling skipped on purpose) must fail, else the pass proves nothing. Pad vectors are nonzero contextual outputs; the attention mask stops attending *to* pads, not pads *having* vectors
+- `encode_batch` pads to the batch's longest row; `max_len` only truncates (+2 specials → 66); DistilBERT takes any length ≤ 512
+- `bert_encode.bert` = the bare DistilBERT submodule `(B, T, 768)`; `bert_encode` = DistilBERT + pooling `(B, 768)`
+- Swap test is blind when A == B (identical positives) or when masks coincide → test on `case3` rows with different lengths; `from_pretrained` returns the model in eval mode (dropout off) until `.train()` is called
+- Weight decay shrinks weights toward 0 each step (regulariser), ≠ lr decay; the scheduler owns the lr path (linear warm-up 10% → peak once → linear decay to 0 at `num_training_steps` = total batches of the run); it edits `optimizer.param_groups[i]["lr"]`, stores `base_lrs` + a step counter; `optimizer.step()` then `scheduler.step()`, once per batch. Adam = per-weight step (running mean ÷ running size of the gradient); param groups = per-part lr
+- Preview a schedule without training: a throwaway optimizer on a dummy parameter + the real step counts
+- Tensors default to CPU; model `.to(DEVICE)` once, every batch each step; mismatch errors, all-CPU is silent and slow; `.cpu()` to come back. GPU work is queued asynchronously → `synchronize()` (≈ `await Promise.all`) before reading a clock; `.item()` / `.cpu()` already wait
+- `len(loader)` = batches; `Subset(ds, range(64))` = 64 rows → 2 batches of 32
+- Resume: `last.pt` per epoch (current weights + AdamW + scheduler + history + `best` row + `best_state` + `epochs_since_best` + epoch) vs `final.pt` per seed (best weights + history); temp file + `os.replace`; build objects then `load_state_dict`; `break` skips the per-epoch save; the stop epoch's weights are kept only if it is best, or via the no-guardrail fallback; default args fixed at `def` time (re-run the def after changing `CHECKPOINT_DIR`)
+- Colab: CU pricing (Pro $9.99 / 100 CU, T4 ≈ 1.2 CU/h), Drive mount + `os.chdir` so relative paths and checkpoints live in Drive; keep tab open, Mac awake (`caffeinate -d`)
 
 ## Background already established
 - Software engineer, ex-Ping Data Intelligence (Ping.Maps, tile server pipelines, SQL optimization, SOV text representation for ML pretraining)
@@ -232,7 +290,8 @@
 - Working on address matching as the chosen narrow task (not parsing, not reverse geocoding)
 
 ## Next session plan (latest; earlier plans in the history)
-- **Start:** recall warm-up (unless David skips) — new questions only; check `logs/warm-up-log.md` (2026-11-08 misses to reword later: loss floor 0.325, duplicate-feature importance, id split, GB classification leaf).
-- Step 5 spec must include order symmetry: the cross-encoder's joined row `[CLS] A [SEP] B` is order-dependent → random side-swap during training or average both orders at prediction; bi-encoder → symmetric head.
-- Step 5 deliberation: bi-encoder only vs bi + cross (2 × 2 with Steps 3/4); time one epoch on a 10k slice (M1 Pro) before choosing Colab.
-- Open, David's idea 2026-11-08: a dirtier dataset (found or self-corrupted) for the final paper — deliberate alongside Step 5.
+- **Start:** tracker link + one or two agenda lines, then the recall warm-up (unless David skips) — new questions only; check `logs/warm-up-log.md` (misses to reword: id split (2nd miss), GB leaf denominator, blocking's two purposes, quadratic pair shrinkage, mean pooling vs a bigger head, filename-keyed cache).
+- **5b run (local MPS, started 2026-11-11):** check `checkpoints_cross/seed_{0,1,2}_final.pt`; if a seed is missing, re-run the §7 queue (resumes from `last.pt`). Health + best epoch as in 5a §8's first cell.
+- **5b §8:** same as 5a: prediction loop (val + test, `preds_*` and `probs_*`), `slice_table` / `rare_number_table` with `{"5a", "5b", "rand_mc2"}`, AUC vs `case2s` split by house number (same / missing / different) → `results.md` 5b row + AUC; does 5b share the missing-number blind spot?
+- **Discuss (David, 2026-11-11):** the professor research (`professor-research.md`) and the side session's suggestion of a street-name focus for the paper; the missing-number question (match or "unknown"?). Both feed Step D.
+- After Step 5: **Step D** (light analysis + survey reading — candidates: Step 8 paper, Cruz et al. 2022 IJGI review, Yin et al. 2025 arXiv 2503.18888 — + deliverable decision).
