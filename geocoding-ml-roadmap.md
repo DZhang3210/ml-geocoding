@@ -17,7 +17,7 @@
 | 2c  | Rule-based baseline                   | libpostal (normalization + dedupe)              | 1 day     | ✅     |
 | 3   | Hand-built matching architecture      | Reimers & Gurevych (2019)                       | 4-6 days  | ✅     |
 | 4   | Reproduce a published DL approach     | Lin et al. (2020)                               | 4-5 days  | ✅     |
-| 5   | Swap in pretrained transformer        | Siamese Transformer Networks (arXiv 2307.02300) | 3-4 days  | 🔶     |
+| 5   | Swap in pretrained transformer        | Siamese Transformer Networks (arXiv 2307.02300) | 3-4 days  | ✅     |
 | D   | Light analysis + deliverable decision | — (Step 8's survey read here)                   | 1-2 days  | ⬜     |
 | 6   | Real error analysis                   | Kilic et al. (2024)                             | 2-3 days  | ⬜      |
 | 7   | Write it up                           | —                                               | 3-4 days  | ⬜      |
@@ -160,7 +160,7 @@ This is a planning aid, not a commitment — if Week 2 runs into Week 3, that's 
   2. Use Hugging Face `transformers` for DistilBERT, but write your own fine-tuning loop rather than a one-line `Trainer.fit()` call — you want to see the gradient updates happening, not abstract them away.
   3. Try freezing most of DistilBERT's layers and only fine-tuning the top 1-2 plus your similarity head first — full fine-tuning on a small dataset can overfit fast.
   4. Watch for the classic small-dataset-transformer failure mode: near-perfect train accuracy with poor validation performance. If you see this, it's a real, useful finding for your error analysis, not just a problem to fix.
-- **Status note (2026-11-11): 🔶 — 5a done, 5b training.** 5a: 3 seeds, test non-identical 82.0–83.7 / `case2s` 58.2–62.9; AUC level with ESIM; blind spot = matches with a missing house number (`results.md` Step 5a section). 5b §2–7 built, 3-seed run going locally on MPS. Next: 5b §8 + reading, then Step D. Spec: `geocoding_ml/transformers/step5_spec.md`.
+- **Status: ✅ done (2026-11-12).** DistilBERT 5a (bi-encoder) and 5b (cross-encoder), 3 seeds each, rows + sections in `results.md`. 5a ties ESIM on AUC; 5b's AUC lead (0.877–0.888) comes only from matches with a missing house number, and on the street question both tie (≈ 0.93). At Youden's J, 5b finds ≈ 10 pts more than 5a at similar `case2s` rejection. No neural model beats RF's 0.902 overall. Status history: `logs/roadmap-status-history.md`.
 - **Finish threshold:** A fourth row on your results table, and a one-paragraph comparison of this model's F1 and qualitative behavior against Step 3's hand-built version — specifically naming what the pretrained encoder bought you.
 
 ### D — Light analysis + deliverable decision *(added 2026-11-09)*
