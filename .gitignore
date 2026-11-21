@@ -17,6 +17,7 @@ geocoding_ml/model_baseline/libpostal_results/
 # Step 3 model checkpoints + training histories (rebuilt by 13_real_training.ipynb)
 geocoding_ml/siamese_model/checkpoints/
 geocoding_ml/siamese_model/checkpoints_case2s/
+geocoding_ml/siamese_model/checkpoints_case2s_v2/
 geocoding_ml/siamese_model/broken/
 # Step 4 ESIM checkpoints + training histories (rebuilt by esim/02_esim.ipynb)
 geocoding_ml/esim/checkpoints/

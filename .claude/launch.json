@@ -1,0 +1,23 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "address-matcher-game",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "/Users/david/Downloads/address_matcher", "run", "dev", "--", "--port", "5173", "--strictPort"],
+      "port": 5173
+    },
+    {
+      "name": "portfolio-site",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "/Users/david/Downloads/portfolio-site", "run", "dev", "--", "--port", "3010"],
+      "port": 3010
+    },
+    {
+      "name": "personal-site",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["/Users/david/Downloads/DZhang3210.github.io/tools/serve.js"],
+      "port": 8093
+    }
+  ]
+}

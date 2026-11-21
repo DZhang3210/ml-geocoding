@@ -1,9 +1,13 @@
-"""Step 3 real training: per-epoch evaluation, the early-stopping rule, broken-run checks,
-and loading saved runs.
+"""Step 3 training: the epoch loop and prediction, per-epoch evaluation, the early-stopping rule,
+broken-run checks, one full run, and loading saved runs.
 
-Used by 13_real_training.ipynb (training) and 14_training_analysis.ipynb (analysis). The functions
-were written by David in 13_real_training.ipynb and moved here unchanged on 2026-10-23;
-load_run / rebuild_model are the loading lines of his summary cell, wrapped as functions.
+Reorganised 2026-11-18 from training_step.py (train_epoch, predict) and real_training.py (the rest), unchanged.
+The functions are David's (train_epoch / predict from the toy-overfit step; evaluate, is_better,
+broken_run_problems from real training); load_run / rebuild_model are the loading lines of his summary cell,
+wrapped as functions. The model itself: model.py. Notebooks: 02_siamese_training.ipynb (training),
+03_siamese_analysis.ipynb (assessment + test run).
+
+Also imported by esim/, transformers/ and model_baseline/07_backtest_case2s.ipynb (same protocol and batch format).
 """
 import copy
 
@@ -13,10 +17,7 @@ from torch import nn
 
 from helpers.check_model_performance import review_typical_slices
 
-import siamese_model.encoder_step as _model_step
-Encoder, SiameseMatcher = _model_step.Encoder, _model_step.SiameseMatcher
-import siamese_model.training_step as _train_step
-predict, train_epoch = _train_step.predict, _train_step.train_epoch
+from siamese_model.model import Encoder, SiameseMatcher
 
 THRESHOLD = 0.5
 CASE1_GUARDRAIL = 98.0      # % rejected on val case1; an epoch below it can't be "best"
@@ -24,6 +25,35 @@ COIN_FLIP_LOSS = 0.693      # -ln 0.5: a model that has learned nothing
 BASE_RATE_LOSS = 0.325      # -(0.1 ln 0.1 + 0.9 ln 0.9): always predicting the 1:9 class mix
 CHECKPOINT_DIR = "checkpoints"   # git-ignored, relative to siamese_model/
 
+
+# ---------- epoch loop and prediction ----------
+
+def train_epoch(model, loader, opt, loss_fn):
+    model.train()
+    total_loss, n_pairs = 0.0, 0
+    for ids_a, len_a, ids_b, len_b, y in loader:
+        opt.zero_grad()                                              # first: clear anything left from before
+        logits = model(ids_a, len_a, ids_b, len_b)                   # the model never sees y
+        loss = loss_fn(logits, y)                                    # BCEWithLogitsLoss applies the sigmoid itself
+        loss.backward()
+        nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)   # between backward and step: edits the gradients step uses
+        opt.step()
+        total_loss += loss.item() * len(y)                           # weight by batch size -> average per pair, not per batch
+        n_pairs += len(y)
+    return total_loss / n_pairs
+
+
+def predict(model, loader):
+    model.eval()
+    probs = []
+    with torch.no_grad():                                            # no graph recorded, no updates
+        for ids_a, len_a, ids_b, len_b, y in loader:                 # y unused
+            logits = model(ids_a, len_a, ids_b, len_b)
+            probs.append(torch.sigmoid(logits))                      # logits -> probabilities
+    return torch.cat(probs)                                          # (N,), in loader order: val/test loaders must not shuffle
+
+
+# ---------- evaluation, early stopping, broken-run checks ----------
 
 def evaluate(model, loader, df, labels):
     """One model on one split -> {"val_loss", "found", "case1", "easy"} (% correct per slice, as in results.md)."""
@@ -66,25 +96,13 @@ def broken_run_problems(history):
     return problems
 
 
-def load_run(seed, pooling, checkpoint_dir=CHECKPOINT_DIR):
-    """One saved run -> (per-epoch history DataFrame, checkpoint dict with state_dict / vocab / config / seed / best)."""
-    history = pd.read_csv(f"{checkpoint_dir}/history_seed_{seed}_pooling_{pooling}.csv")
-    ckpt = torch.load(f"{checkpoint_dir}/overture_siamese_seed_{seed}_pooling_{pooling}.pt")
-    return history, ckpt
-
-
-def rebuild_model(ckpt):
-    """Checkpoint -> the model that produced ckpt["best"], built from the checkpoint's own vocab + config."""
-    model = SiameseMatcher(Encoder(len(ckpt["vocab"]), pooling=ckpt["config"]["pooling"]))
-    model.load_state_dict(ckpt["state_dict"])
-    return model
-
+# ---------- one full run ----------
 
 def train_run(seed, pooling, vocab, train_loader, val_loader, val_df, val_labels, lr=1e-3, max_epochs=20, patience=3):
     """One training run -> (history DataFrame, best epoch's row, best epoch's state_dict).
 
-    The loop of `run_training` in 13_real_training.ipynb with its notebook globals as arguments, so another dataset
-    (e.g. case2s, 15_train_on_case2s.ipynb) can reuse it. Same early-stopping rule (`is_better`): best epoch on val.
+    The loop of `run_training` in 02_siamese_training.ipynb §6 with its notebook globals as arguments, so another
+    dataset (case2s, 02_siamese_training.ipynb §9–11) can reuse it. Same early-stopping rule (`is_better`).
     """
     torch.manual_seed(seed)
     model = SiameseMatcher(Encoder(len(vocab), pooling=pooling))
@@ -110,3 +128,19 @@ def train_run(seed, pooling, vocab, train_loader, val_loader, val_df, val_labels
     if best is None:                                      # no epoch reached the case1 guardrail -> keep the last epoch's weights
         best_state = copy.deepcopy(model.state_dict())
     return pd.DataFrame(history), best, best_state
+
+
+# ---------- reading saved runs ----------
+
+def load_run(seed, pooling, checkpoint_dir=CHECKPOINT_DIR):
+    """One saved run -> (per-epoch history DataFrame, checkpoint dict with state_dict / vocab / config / seed / best)."""
+    history = pd.read_csv(f"{checkpoint_dir}/history_seed_{seed}_pooling_{pooling}.csv")
+    ckpt = torch.load(f"{checkpoint_dir}/overture_siamese_seed_{seed}_pooling_{pooling}.pt")
+    return history, ckpt
+
+
+def rebuild_model(ckpt):
+    """Checkpoint -> the model that produced ckpt["best"], built from the checkpoint's own vocab + config."""
+    model = SiameseMatcher(Encoder(len(ckpt["vocab"]), pooling=ckpt["config"]["pooling"]))
+    model.load_state_dict(ckpt["state_dict"])
+    return model

@@ -18,12 +18,13 @@
 | 3   | Hand-built matching architecture      | Reimers & Gurevych (2019)                       | 4-6 days  | ✅     |
 | 4   | Reproduce a published DL approach     | Lin et al. (2020)                               | 4-5 days  | ✅     |
 | 5   | Swap in pretrained transformer        | Siamese Transformer Networks (arXiv 2307.02300) | 3-4 days  | ✅     |
-| D   | Light analysis + deliverable decision | — (Step 8's survey read here)                   | 1-2 days  | ⬜     |
-| 6   | Real error analysis                   | Kilic et al. (2024)                             | 2-3 days  | ⬜      |
-| 7   | Write it up                           | —                                               | 3-4 days  | ⬜      |
+| D   | Light analysis + deliverable decision | — (Step 8's survey read here)                   | 1-2 days  | ✅     |
+| 6   | Real error analysis                   | Kilic et al. (2024)                             | 2-3 days  | ➖ folded into 7 |
+| 7   | Write it up                           | —                                               | 3-4 days  | 🔶      |
 | 8   | Position within field taxonomy        | 2024 survey (IJGI 13(4):138)                    | 1 day     | ⬜      |
 | 9   | *(stretch)* Geographic feature fusion | GeoBERT, GeoRoBERTa                             | 3-5 days  | ⬜      |
 | 10  | *(later-stage)* Professor outreach    | —                                               | 1 day     | ⬜      |
+| 11  | *(next project)* Move to interpretability | — (ARENA, TransformerLens)                  | —         | ⬜      |
 
 **Run order from Step 5 on (2026-11-09, David):** 5 → **D** (light analysis of the Step 5 results + Step 8's survey + decide what the paper delivers: claim, dataset, possibly a retrieval setting) → 6 (deep error analysis, on the final set-up only) → 7 (write-up, Step 8's positioning written in) → 9 / 10 optional. Reason: no deep analysis on a set-up the paper may not use. Step numbers are kept so older references stay valid.
 
@@ -179,8 +180,27 @@ This is a planning aid, not a commitment — if Week 2 runs into Week 3, that's 
      | Specific failure modes: missing house number; errors that vary across ZIP codes; street-name-only angle (open question) | Whether the missing-number gap or spatial variation of matching errors is documented |
 
      The value proposition the check tests: *how well do learned address matchers handle the hard cases in real, open, cross-source US data, and where do they fail?* Lab fit for each framing: `professor-research.md` §3.
+
+     **Result (2026-11-17, from Ramani & Borrajo 2024, Cruz 2022, Yin 2025, Quan 2024; detail in each paper's notes in `Geocoding ML NOTES/`):**
+
+     | Candidate | Verdict | Closest paper and evidence |
+     |---|---|---|
+     | Open real US cross-source benchmark | **New** | Ramani & Borrajo: synthetic Faker pairs, no ZIP, no release. Cruz: no shared benchmark, so DL scores can't be compared across papers. Yin calls for a unified open dataset (§5.1, p. 21). Caveat: our labels = agreement with Overture's matcher. |
+     | Per-hard-negative-slice results | **New** (Ramani: partly) | Ramani generates a case1-like type but never scores it separately; no look-alike-street type anywhere. Cruz and Yin: no per-error-type evaluation. |
+     | Rules → classical → siamese → ESIM → transformer, same splits | **Partly done** | Ramani: rules + ESIM only. Cruz lists a systematic comparison as an open gap. Yin calls for it (p. 16). We cover architectures, not hyperparameters. |
+     | Failure modes: missing number, ZIP variation | **New** (weakest evidence) | Ramani never drops the number and has no ZIP. Cruz and Yin are silent: no evidence either way. |
+
+     Not checked: Kilic et al. 2024 (Step 6 paper) and the Amazon SIGSPATIAL 2024 paper (no PDF). Yin's coverage misses 2024 papers, so "not in Yin" counts only alongside the others. Quan 2024: retrieval setting deferred until `professor-research.md` §3 is read; if added, a BM25 baseline is expected.
   3. Decide the paper's claim and set-up: keep the current Overture pairs, add a dirtier dataset (found or self-corrupted), and/or a retrieval setting (ZIP block → bi-encoder top-k → cross-encoder rerank → threshold). Open questions: "A dirtier dataset" and "Centralised results view" in `open-questions-and-debugging.md`.
-  4. If the set-up changes, list which models must be re-run on it before Step 6.
+     **Decision (2026-11-17, David):**
+
+     | Item | Decision |
+     |---|---|
+     | Headline claim | Evaluation, not method: on real cross-source US pairs, five families look near-perfect overall but split apart on hard slices. Engineered string distances (RF / XGB) separate look-alike streets best at this data size, and the neural models wrongly reject true matches with a house number missing on one side. Scope: "at this training size", one small transformer, untuned. "Best" is always tied to a slice and a metric (AUC next to the 0.5 numbers). |
+     | Benchmark | Contribution #2, not the headline: labels = agreement with Overture's matcher. Abstract names the labelling, the introduction gives one sentence, the limitations give the detail. Step 6's hand-labelled errors (model / label / undecidable) turn the caveat into a label-noise share. |
+     | Dataset | Keep current Overture + `case2s` (CT). No dirtier dataset. |
+     | Retrieval setting | Dropped → future work (2026-11-17, David). No more Step D reading; papers are read only when they serve a concrete purpose. |
+  4. If the set-up changes, list which models must be re-run on it before Step 6. **Set-up unchanged → nothing to re-run.**
 - **Finish threshold:** A short written decision (claim, dataset(s), metrics, models to re-run) that Steps 6 and 7 then follow.
 
 ### 6 — Real error analysis
@@ -195,6 +215,7 @@ This is a planning aid, not a commitment — if Week 2 runs into Week 3, that's 
   3. Count categories and note which ones are frequent vs. rare, and which ones seem "fixable" (a preprocessing step would catch it) vs. genuinely hard (requires real semantic understanding).
   4. Connect at least one category back to a specific real-world consequence (e.g. Kilic et al.'s framing of downstream data-quality impact) rather than treating error analysis as a pure accuracy exercise.
 - **Finish threshold:** A short table of failure categories with counts and 2-3 concrete example pairs per category, plus one paragraph on which failure mode matters most in practice and why.
+- **Status: ➖ folded into Step 7 (2026-11-19, David).** Not run as a separate step: the paper went first, and its Results already break failures down by slice (missing house number on one side, look-alike streets, rare numbers). Not done: hand-labelled error categories, so the label-noise share in Overture's labels stays unmeasured and is reported as a limitation.
 
 ### 7 — Write it up like a short paper
 - **Est. time:** 3-4 days.
@@ -240,3 +261,20 @@ This is a planning aid, not a commitment — if Week 2 runs into Week 3, that's 
   1. Reference a specific finding from your writeup, not the project in general.
   2. Ask one specific, answerable question rather than a broad "would you take me on."
 - **Finish threshold:** A short, specific email drafted and sent — not a milestone to perfect endlessly.
+### 11 — Move to interpretability *(next project; added 2026-11-16)*
+- **Why (David):** geocoding taught PyTorch, the libraries, the models and the maths, but the methods are mature and new results mean architecture search for small gains ("not enough velocity"). Interpretability is small but fast-growing with real impact. Likely a new project folder; lessons from this one carried over.
+- **When:** after the geocoding write-up (Step 7) and professor outreach (Step 10). Finish geocoding first.
+- **Evidence gathered (2026-11-16):** OpenAlex papers with "mechanistic interpretability" in title/abstract: 15 (2021) → 57 (2023) → 462 (2025), about the size of RLHF, ~30× smaller than diffusion / GNNs; entity resolution flat (115 → 159).
+- **Likely path:** ARENA curriculum → a small project (bridge idea: probe / ablate the Step 5 DistilBERT for how it compares house numbers, case1 slice) → contributions to the open-source tools → LessWrong / Alignment Forum post + mech-interp workshop submission → apply to SPAR / MATS / Anthropic Fellows (check current deadlines first).
+- **Open-source entry points (GitHub, checked 2026-11-16):**
+
+  | Repo | Created | Stars | Activity |
+  |---|---|---:|---|
+  | [TransformerLens](https://github.com/TransformerLensOrg/TransformerLens) | Aug 2022 | 4.1k | 100+ commits in 3 months; best place to contribute (mature, few easy issues) |
+  | [pyvene](https://github.com/stanfordnlp/pyvene) | Feb 2023 | 0.9k | last push Mar 2026 |
+  | [Neuronpedia](https://github.com/hijohnnylin/neuronpedia) | Jun 2023 | 1.2k | active |
+  | [ARENA materials](https://github.com/ARENA-education/ARENA_materials) | Oct 2023 | 1.4k | active |
+  | [nnsight](https://github.com/ndif-team/nnsight) | Oct 2023 | 1.1k | active |
+  | [SAELens](https://github.com/decoderesearch/SAELens) | Nov 2023 | 1.6k | active |
+  | [sparsify](https://github.com/EleutherAI/sparsify) | May 2024 | 0.7k | active |
+  | [circuit-tracer](https://github.com/decoderesearch/circuit-tracer) | May 2025 | 3.0k | 5 commits in 3 months: much used, little developed |

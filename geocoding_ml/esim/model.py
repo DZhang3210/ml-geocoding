@@ -1,38 +1,46 @@
-"""ESIM as an importable module, for 03_esim_extension.ipynb (written by Claude 2026-11-06, at David's request).
+"""ESIM, all of it in one place: address string -> match logit.
 
-The model is the same as David's in 02_esim.ipynb, with one change: the embedding table and sizes are
-arguments instead of notebook globals, so the input width can differ from the hidden size
-(the stacked setting feeds 400-d vectors into a 200-hidden model). Layers are created in the same
-order as in 02, so with emb_dim = hidden = 200 a saved 02 checkpoint loads into this ESIM unchanged
-(03 checks that it reproduces 02's saved predictions). 02 keeps its own step-by-step copy.
+The single copy of every ESIM component (reorganised 2026-11-14 from tokenizer.py + esim_model.py, which held
+the same code; the layers are David's from 02_esim.ipynb, with the table and sizes as arguments so one class
+serves all five embedding settings). Layers are created in the same order and under the same attribute names
+as the saved checkpoints, so every run in checkpoints/esim_*/ loads unchanged.
 
-Also here: the word-level encode_batch / collate, the embedding-table builders for each setting,
-and one training run (same protocol as 02's run_training).
+Reading order = data flow:
+  1. tokenize                 string -> words
+  2. embedding tables         word -> row id -> frozen vector (one builder per setting)
+  3. batches                  strings -> padded ids + lengths; DataLoaders
+  4. layers                   embedding -> context BiLSTM -> align -> enhance -> composition BiLSTM -> pool -> head
+  5. ESIM                     the assembled model
+
+Training and reading saved runs: training.py. Tests and results: 02_esim.ipynb.
 """
-import copy
 import os
+import re
 
 import numpy as np
-import pandas as pd
 import torch
 from torch import nn
 from torch.utils.data import DataLoader
 from gensim.models import FastText, Word2Vec
 
-from esim.tokenizer import tokenize
-from siamese_model.data_plumbing import PairDataset
-from siamese_model.encoder_step import BiLSTM
-from siamese_model.training_step import predict, train_epoch
-from siamese_model.real_training import evaluate, is_better, THRESHOLD
+from siamese_model.model import PairDataset
+from siamese_model.model import BiLSTM
 
 PAD_ID, UNK_ID = 0, 1
-MAX_LEN = 85                         # tokens per address, as MAX_BATCH_FEATURE_SIZE in 02
-HIDDEN, DROPOUT = 200, 0.3
-BATCH_SIZE, LR, MAX_EPOCHS, PATIENCE = 64, 1e-3, 20, 3
-CHECKPOINTS = "checkpoints"          # relative to esim/
+MAX_LEN = 85                         # tokens kept per address (02's MAX_BATCH_FEATURE_SIZE)
+EMB_DIM, HIDDEN, DROPOUT = 200, 200, 0.3
+BATCH_SIZE = 64
+CHECKPOINTS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "checkpoints")   # esim/checkpoints, from any folder
 
 
-# ---------- embedding tables: setting -> (vocab, matrix) ----------
+# ---------- 1. tokenize ----------
+
+def tokenize(s):
+    # the tokenisation word2vec was trained with (01_word2vec.ipynb); ESIM must use the same one
+    return re.findall(r"[A-Za-z]+|\d+", s.upper())
+
+
+# ---------- 2. embedding tables: setting -> (vocab, matrix) ----------
 # vocab: token -> row id; matrix: (rows, emb_dim) float tensor, rows 0 / 1 = PAD / UNK (zeros).
 
 def _load(kind, min_count):
@@ -47,13 +55,13 @@ def _table(keys, vectors):
 
 
 def plain_table(kind, min_count):
-    """One model's vectors (as in 02): vocab id = word index + 2."""
+    """One model's vectors (settings mc2, mc1, ft_mc1): vocab id = word index + 2."""
     wv = _load(kind, min_count).wv
     return _table(wv.index_to_key, wv.vectors)
 
 
 def random_rows_table(all_addresses, min_count=2, seed=0):
-    """Option 5: word2vec mc2 rows, then one fixed random row per token word2vec dropped.
+    """Setting rand_mc2: word2vec mc2 rows, then one fixed random row per token word2vec dropped.
     Random rows ~ normal with the word2vec rows' per-dimension mean and std; dropped tokens sorted
     so the same token always gets the same row."""
     wv = _load("word2vec", min_count).wv
@@ -66,7 +74,7 @@ def random_rows_table(all_addresses, min_count=2, seed=0):
 
 
 def stacked_table(min_count=1):
-    """Option 4: each word's row = [word2vec vector; fastText vector], 400-d, in word2vec's word order."""
+    """Setting stack_mc1: each word's row = [word2vec vector; fastText vector], 400-d, in word2vec's word order."""
     w2v, ft = _load("word2vec", min_count).wv, _load("fasttext", min_count).wv
     assert set(w2v.key_to_index) == set(ft.key_to_index), "word2vec and fastText vocabularies differ"
     keys = w2v.index_to_key
@@ -74,7 +82,7 @@ def stacked_table(min_count=1):
     return _table(keys, np.hstack([w2v.vectors, ft_rows]))
 
 
-# ---------- batches ----------
+# ---------- 3. batches ----------
 
 def encode_batch(strings, vocab, max_len=MAX_LEN):
     """Strings -> (ids (B, T) padded with PAD_ID, lengths (B,)); unknown tokens -> UNK_ID."""
@@ -87,6 +95,7 @@ def encode_batch(strings, vocab, max_len=MAX_LEN):
 
 def make_collate(vocab):
     def collate(samples):
+        # samples = [(address_a, address_b, label), ...] -> encode each side separately
         addr_a, addr_b, labels = zip(*samples)
         ids_a, len_a = encode_batch(list(addr_a), vocab)
         ids_b, len_b = encode_batch(list(addr_b), vocab)
@@ -101,7 +110,7 @@ def make_loaders(vocab, splits):
             for name, (df, labels) in splits.items()}
 
 
-# ---------- model (same layers and creation order as 02) ----------
+# ---------- 4. layers ----------
 
 class EmbeddingLayer(nn.Module):
     """Frozen table + one trainable UNK vector swapped in where id == UNK_ID."""
@@ -111,12 +120,13 @@ class EmbeddingLayer(nn.Module):
         self.unk = nn.Parameter(torch.zeros(matrix.shape[1]))
 
     def forward(self, ids):
-        out = self.frozen(ids)
+        out = self.frozen(ids)                                         # (B, T, emb_dim)
         return torch.where((ids == UNK_ID).unsqueeze(-1), self.unk, out)
 
 
 class ContextEncoder(nn.Module):
-    def __init__(self, emb_dim, hidden, dropout):
+    """dropout -> BiLSTM (shared by both sides); output 2 * hidden per word."""
+    def __init__(self, emb_dim=EMB_DIM, hidden=HIDDEN, dropout=DROPOUT):
         super().__init__()
         self.dropout = nn.Dropout(p=dropout)
         self.bilstm = BiLSTM(input_size=emb_dim, hidden=hidden)
@@ -132,10 +142,11 @@ def attention_weights(A, B, len_B):
 
 
 def align(A, B, len_B):
-    return attention_weights(A, B, len_B) @ B
+    return attention_weights(A, B, len_B) @ B                                  # (rows, len_a, 2 * hidden)
 
 
 def enhance(A, len_A, B, len_B):
+    """Per word: [a; ã; a − ã; a ⊙ ã], both sides."""
     tilde_A, tilde_B = align(A, B, len_B), align(B, A, len_A)
     return (torch.cat([A, tilde_A, A - tilde_A, A * tilde_A], dim=2),
             torch.cat([B, tilde_B, B - tilde_B, B * tilde_B], dim=2))
@@ -143,7 +154,7 @@ def enhance(A, len_A, B, len_B):
 
 class Composition(nn.Module):
     """Composition: projection 8*hidden -> hidden, ReLU, dropout, BiLSTM."""
-    def __init__(self, hidden, dropout):
+    def __init__(self, hidden=HIDDEN, dropout=DROPOUT):
         super().__init__()
         self.linear = nn.Linear(4 * 2 * hidden, hidden)
         self.relu = nn.ReLU()
@@ -155,6 +166,7 @@ class Composition(nn.Module):
 
 
 class MeanMaxPooling(nn.Module):
+    """Masked mean + max over real positions: (B, T, D) -> (B, 2D)."""
     def forward(self, h, lengths):
         lengths = lengths.to(h.device)
         m = (torch.arange(h.size(1), device=h.device)[None, :] < lengths[:, None]).unsqueeze(-1)
@@ -164,7 +176,8 @@ class MeanMaxPooling(nn.Module):
 
 
 class ClassifierHead(nn.Module):
-    def __init__(self, hidden, dropout):
+    """[v_a; v_b] (8 * hidden) -> MLP (hidden, tanh, dropout) -> 1 logit."""
+    def __init__(self, hidden=HIDDEN, dropout=DROPOUT):
         super().__init__()
         self.linear1 = nn.Linear(hidden * 4 * 2, hidden)
         self.tanh = nn.Tanh()
@@ -175,7 +188,10 @@ class ClassifierHead(nn.Module):
         return self.linear2(self.dropout(self.tanh(self.linear1(vectors)))).squeeze(-1)
 
 
+# ---------- 5. the assembled model ----------
+
 class ESIM(nn.Module):
+    # attribute names are the state_dict keys of the saved checkpoints: renaming one breaks load_state_dict
     def __init__(self, matrix, hidden=HIDDEN, dropout=DROPOUT):
         super().__init__()
         self.embedding = EmbeddingLayer(matrix)
@@ -191,41 +207,3 @@ class ESIM(nn.Module):
         pa = self.pooling(self.encode_attention(A_res, len_a), len_a)
         pb = self.pooling(self.encode_attention(B_res, len_b), len_b)
         return self.head(torch.cat([pa, pb], dim=1))
-
-
-# ---------- one training run (same protocol as 02's run_training + save cell) ----------
-
-def run_training(matrix, loaders, val, val_label, seed):
-    """Seeded run with early stopping on is_better -> (history DataFrame, best row, best state_dict)."""
-    torch.manual_seed(seed)
-    model = ESIM(matrix)
-    opt = torch.optim.Adam(model.parameters(), lr=LR)
-    loss_fn = nn.BCEWithLogitsLoss()
-    best, best_state, since_best, history = None, None, 0, []
-    for epoch in range(MAX_EPOCHS):
-        row = {"epoch": epoch, "train_loss": train_epoch(model, loaders["train"], opt, loss_fn),
-               **evaluate(model, loaders["val"], val, val_label)}
-        print(row)
-        history.append(row)
-        if is_better(row, best):
-            best, best_state, since_best = row, copy.deepcopy(model.state_dict()), 0
-        else:
-            since_best += 1
-            if since_best >= PATIENCE:
-                break
-    if best is None:                                  # no epoch reached the case1 guardrail -> keep the last
-        best_state = copy.deepcopy(model.state_dict())
-    return pd.DataFrame(history), best, best_state
-
-
-def save_run(folder, seed, history, best, best_state, vocab, matrix, loaders, config):
-    """Checkpoint + history + thresholded val/test predictions, in the same file layout as 02."""
-    os.makedirs(folder, exist_ok=True)
-    history.to_csv(os.path.join(folder, f"history_seed_{seed}.csv"), index=False)
-    torch.save({"state_dict": best_state, "vocab": vocab, "config": config, "seed": seed, "best": best},
-               os.path.join(folder, f"esim_seed_{seed}.pt"))
-    model = ESIM(matrix)
-    model.load_state_dict(best_state)
-    for split in ["val", "test"]:
-        preds = (predict(model, loaders[split]) >= THRESHOLD).int().numpy()
-        np.save(os.path.join(folder, f"preds_{split}_seed_{seed}.npy"), preds)

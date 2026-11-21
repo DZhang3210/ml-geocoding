@@ -12,7 +12,7 @@ from helpers.pairs import CACHE_KEY, check_cache, pair_fingerprint
 # parsing or _evaluation_function changes, otherwise stale features are silently reused.
 # Never pass a sample (e.g. .sample(2000)) through here: it would be cached as the full split.
 
-def _evaluation_function(s):
+def _evaluation_function(s, missing_number_as_zero=False):
     """One pair-row -> one row of similarity features.
 
     Expects columns street_a/b, number_a/b (house number), zip_a/b,
@@ -25,7 +25,17 @@ def _evaluation_function(s):
         numbers, and number_missing = 0 (2026-10-13: previously lumped with one-missing,
         which made every no-number identical positive a predicted non-match).
     number_missing (0/1) is also returned as a feature.
+
+    missing_number_as_zero=True (ablation, 2026-11-17): a missing house number is read as "0"
+    and the number features are computed like any other pair -- no -1 / 1 overrides, and no
+    number_missing column, so the model gets no explicit "number missing" signal.
     """
+    if missing_number_as_zero:
+        num = lambda x: "0" if pd.isna(x) else str(x)
+        s = s.copy()
+        s["number_a"], s["number_b"] = num(s["number_a"]), num(s["number_b"])
+        s["number_missing"] = s["both_number_missing"] = False
+
     # --- edit-based: Jaro-Winkler, normalised Levenshtein, Hamming (ZIP only, fixed length 5) ---
     jw_street_sim = jellyfish.jaro_winkler_similarity(s["street_a"], s["street_b"])
     jw_zipcode_sim =  jellyfish.jaro_winkler_similarity(s["zip_a"], s["zip_b"])
@@ -74,20 +84,22 @@ def _evaluation_function(s):
             "lv_zipcode_sim": lv_zipcode_sim,
             "lv_address_sim": lv_address_sim,
             "hm_zipcode_sim": hm_zipcode_sim,
-            "number_missing": s["number_missing"],
+            **({} if missing_number_as_zero else {"number_missing": s["number_missing"]}),
         })
 
 # Row-wise over a whole pairs frame (~0.3 ms/row -> ~1.5 min for all Overture pairs)
-def _process_df(df):
-    return pd.DataFrame([_evaluation_function(row) for _,row in df.iterrows()])
+def _process_df(df, missing_number_as_zero=False):
+    return pd.DataFrame([_evaluation_function(row, missing_number_as_zero) for _,row in df.iterrows()])
 
-def get_processed_dfs(parquet_eval):
+# missing_number_as_zero: see _evaluation_function. Give it its own cache paths -- the cache
+# check only compares pair rows, so a shared path would silently return the other variant.
+def get_processed_dfs(parquet_eval, missing_number_as_zero=False):
     ret = []
     for df,filepath in parquet_eval:
         if os.path.exists(filepath):
             curr = check_cache(pd.read_parquet(filepath), df, filepath)
         else:
-            curr = _process_df(df)
+            curr = _process_df(df, missing_number_as_zero)
             curr.assign(**{CACHE_KEY: pair_fingerprint(df)}).to_parquet(filepath, index = False)
         ret.append(curr)
     if len(ret) != 3:
